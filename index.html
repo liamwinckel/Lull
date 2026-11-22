@@ -604,6 +604,7 @@ function step1(dt) {
     else { if (b.x < L) b.vx += (L - b.x) * kw * dt; if (b.x > R) b.vx -= (b.x - R) * kw * dt; }
     if (b.y < T) { b.vy += (T - b.y) * kw * dt; b.heat -= 0.2 * dt; }
     if (b.y > B) { b.vy -= (b.y - B) * kw * dt; b.heat += 0.12 * dt; }
+    b.heat = clamp(b.heat, 0, 1);
 
     const damp = Math.exp(-0.9 * dt); b.vx *= damp; b.vy *= damp;
     const sp = Math.hypot(b.vx, b.vy), cap = 700 * g;
@@ -901,7 +902,7 @@ function render() {
   const bs = 1 + 0.14 * breathLvl;
   let n = 0;
   for (const b of [...blobs.filter(b => !b.p), ...blobs.filter(b => b.p)]) {
-    let hv = Math.min(b.heat, 0.999);
+    let hv = clamp(b.heat, 0, 0.999);   // never let a tiny negative read as 'hottest' in the shader
     if (b.dying && b.dying !== b) {
       if (b.r0 === undefined) b.r0 = Math.max(b.r, 0.01);
       // fades out of the visible surface as it shrinks AND as it sinks inside, so it never shows as a lump within
@@ -1299,7 +1300,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.5 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.6 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
