@@ -931,15 +931,20 @@ $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); a
 /* ---------- touch ---------- */
 const pointers = new Map();
 let swipe = null, lastNoteT = 0;
+let gestureShed = false, lastShedT = 0;
 function shedFromStir(b, x, y, fvx, fvy, mag) {
   const now = performance.now(), bs = 1 + 0.14 * breathLvl;
-  if (mag < 160 || now - (b.lastShed || 0) < 260 || !room(1)) return;
+  // A droplet only tears off when a fast flick slices through the *edge* of a large blob:
+  // a slow drag or a push through the middle just moves the wax. At most one per swipe, with a cooldown.
+  if (gestureShed || mag < 1100 || now - lastShedT < 2500 || !room(1)) return;
   let count = 0; for (const q of blobs) if (q.p && !q.dying) count++;
-  if (count >= Math.round(particles * 16) || b.tr < u * RANGE()[0] * 0.9) return;
-  if (Math.hypot(b.x - x, b.y - y) > b.r * bs * 1.25) return;
-  b.lastShed = now;
-  // a droplet tears off the far side of the blob, in the direction the finger is moving
-  const dx = fvx / mag, dy = fvy / mag, a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.9;
+  if (count >= Math.round(particles * 16) || b.tr < u * avgR() * 0.85) return;
+  const d = Math.hypot(b.x - x, b.y - y), R = b.r * bs;
+  if (d < R * 0.6 || d > R * 1.0) return;
+  gestureShed = true; lastShedT = now;
+  // the sliced-off piece comes from the edge the finger cut through, flung the way the finger was going
+  const ex = (x - b.x) / d, ey = (y - b.y) / d, dx = fvx / mag, dy = fvy / mag;
+  const a = Math.atan2(ey + dy * 0.6, ex + dx * 0.6);
   const q = mkParticle(b.x + Math.cos(a) * b.r * bs * 0.8, b.y + Math.sin(a) * b.r * bs * 0.8, b.heat);
   q.r = q.tr * 0.7; q.age = 0;
   const sp = Math.min(mag, 1600) * 0.12;
@@ -1005,6 +1010,7 @@ canvas.addEventListener("pointerdown", e => {
   if (!started) return;
   if (sheetOpen) { closeSheet(); return; }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  gestureShed = false;
   const now = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
   if (pointers.size === 2) {
@@ -1045,7 +1051,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.2 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
