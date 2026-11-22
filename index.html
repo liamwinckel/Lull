@@ -223,7 +223,7 @@ let volume = store.get("vol", 0.7);
 const canvas = $("#c");
 const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
 if (!gl) { $("#nogl").style.display = "flex"; $("#start").style.display = "none"; return; }
-const MAX = 64;   // metaball slots in the renderer (a wax blob is drawn as 3 drifting lobes, a droplet as 1)
+const MAX = 80;   // metaball slots in the renderer (a wax blob is drawn as 3 drifting lobes, a droplet as 1)
 const load = () => blobs.reduce((n, b) => n + (b.p ? 1 : 3), 0);
 const room = k => load() + k <= MAX;
 const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
@@ -442,7 +442,7 @@ const contacts = new Set();
 // Merging slider: touching wax combines once it has been in contact long enough. "Easily" = a moment,
 // lower = longer, "Never" = never. Gentle contact counts fully; a fast glancing bump barely counts.
 const touchTime = new Map();
-const mergeAfter = () => absorb <= 0.001 ? Infinity : 9 * Math.pow(1 - absorb, 2.4);   // Easily = merges on contact
+const mergeAfter = () => absorb <= 0.001 ? Infinity : 16 * Math.pow(1 - absorb, 2.6);   // Easily = merges on contact
 const mergeCap = () => absorb > 0.9 ? Infinity : u * RANGE()[1] * (1.6 + 4 * absorb * absorb);   // size limit loosens, gone at the top
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
@@ -530,20 +530,29 @@ function step1(dt) {
   const bs = 1 + 0.14 * breathLvl, kw = 10, cx = tank.x0 + tank.w / 2;
   for (const b of blobs) {
     if (b.dying) {
-      const tg = b.dying, before = b.r * b.r;
+      let tg = b.dying;
+      if (tg !== b) {
+        let hops = 0;
+        while (tg.dying && tg.dying !== tg && hops++ < 8) tg = tg.dying;           // target merged on: follow it
+        if (tg.dying === tg || !blobs.includes(tg)) {                              // target dissolving or gone: free again
+          b.dying = null; b.off = null; b.mt = 0; b.r0 = undefined; if (!b.p) b.noMerge = 1; continue;
+        }
+        if (tg !== b.dying) { b.off = [b.x - tg.x, b.y - tg.y]; b.dying = tg; }
+      }
+      const before = b.r * b.r;
       if (tg !== b) {
         // melt: it stays where it joined, riding along with the absorbing blob, and sinks in slowly,
         // so the merged shape keeps both parts (a lopsided, two-lobed form) and only gradually rounds off
         b.mt = (b.mt || 0) + dt;
         if (!b.off) b.off = [b.x - tg.x, b.y - tg.y];
-        const settle = Math.exp(-dt * (b.p ? 2.2 : 0.16));
+        const settle = Math.exp(-dt * (b.p ? 2.2 : 0.16 + 0.9 * absorb * absorb));
         b.off[0] *= settle; b.off[1] *= settle;
         const e = Math.min(1, b.mt / 0.7), ee = e * e * (3 - 2 * e);           // blend from its own motion into riding along
         const fx = b.x + b.vx * dt, fy = b.y + b.vy * dt, rx = tg.x + b.off[0], ry = tg.y + b.off[1];
         b.x = fx + (rx - fx) * ee; b.y = fy + (ry - fy) * ee;
         b.vx += (tg.vx - b.vx) * relax(2, dt); b.vy += (tg.vy - b.vy) * relax(2, dt);
         const sunk = !b.p || Math.hypot(b.off[0], b.off[1]) < tg.r * 0.55;   // a droplet only shrinks once it's inside
-        if (sunk) b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.9 : 0.22)) - u * (b.p ? 0.004 : 0.002) * dt);
+        if (sunk) b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.9 : 0.22 + 0.9 * absorb * absorb)) - u * (b.p ? 0.004 : 0.002 + 0.006 * absorb) * dt);
         // when it's nearly gone, the absorbing blob remembers the join as a lasting stretch along that direction
         if (!b.p && b.r < 0.6 && !tg.dying) {
           const ol = Math.hypot(b.off[0], b.off[1]) || 1, amt = 0.5 * Math.sqrt((b.r0 || 10) / Math.max(tg.tr, 1));
@@ -643,10 +652,10 @@ function step1(dt) {
         // touch-to-merge, set by the Merging slider
         {
           const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), key = a.seed + c.seed;
-          const reach = (a.r + c.r) * bs * (0.95 + 0.9 * Math.pow(absorb, 3));   // eager settings reach out for nearby wax
+          const reach = (a.r + c.r) * bs * (0.95 + 1.6 * Math.pow(absorb, 2.5));   // eager settings reach out for nearby wax
           if (d < reach && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
             if (d > (a.r + c.r) * bs * 0.9) {   // not touching yet: drift toward each other
-              const f = 45 * g * Math.pow(absorb, 2) * dt, ux0 = dx / (d || 1), uy0 = dy / (d || 1);
+              const f = 110 * g * Math.pow(absorb, 2) * dt, ux0 = dx / (d || 1), uy0 = dy / (d || 1);
               a.vx += ux0 * f; a.vy += uy0 * f; c.vx -= ux0 * f; c.vy -= uy0 * f;
               continue;
             }
@@ -663,9 +672,10 @@ function step1(dt) {
           } else touchTime.delete(key);
         }
         if (regrouping) continue;
-        if (Math.min(a.tr, c.tr) > Math.max(a.tr, c.tr) * 0.62) continue;   // similar sizes flow through and fuse, like the original
+        // similar sizes only flow through each other when merging is eager; otherwise they press apart
+        if (Math.min(a.tr, c.tr) > Math.max(a.tr, c.tr) * 0.62 && absorb > 0.6) continue;
         // they visibly touch (a neck forms) before pushing; no force at all while apart
-        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.82;
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * (0.8 + 0.17 * (1 - absorb));
         if (d >= rr) continue;
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
         const firm = 1 - absorb;   // at 'Easily' nothing bounces
@@ -901,7 +911,7 @@ const arr = new Float32Array(MAX * 4), barr = new Float32Array(24 * 4);
 function render() {
   const bs = 1 + 0.14 * breathLvl;
   let n = 0;
-  for (const b of [...blobs.filter(b => !b.p), ...blobs.filter(b => b.p)]) {
+  for (const b of [...blobs.filter(b => !b.p && !b.dying), ...blobs.filter(b => b.p), ...blobs.filter(b => !b.p && b.dying)]) {
     let hv = clamp(b.heat, 0, 0.999);   // never let a tiny negative read as 'hottest' in the shader
     if (b.dying && b.dying !== b) {
       if (b.r0 === undefined) b.r0 = Math.max(b.r, 0.01);
@@ -1238,7 +1248,7 @@ function tap(x, y) {
   for (let i = 0; i < k; i++) {
     const a = a0 + (i / k) * Math.PI * 2;
     const c = mk(hit.x, hit.y, startR, hit.heat);
-    c.tr = cr; c.noMerge = 6 + Math.random() * 4;
+    c.tr = cr; c.noMerge = (6 + Math.random() * 4) * (1 - 0.85 * absorb);
     c.seed = hit.seed; c.seedT = hit.seed + (i - (k - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.4;   // starts as the original's shape, drifts gently to its own
     c.r0s = startR; c.tr = startR; c.trEnd = cr;
     c.sq = hit.sq || 0; c.sqv = hit.sqv || 0; c.snx = hit.snx; c.sny = hit.sny;
@@ -1300,7 +1310,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.6 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.7 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
