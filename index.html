@@ -12,10 +12,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>Lull — Lava Lamp</title>
 <style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;
+  /* iOS home-screen bug: with a translucent status bar the page is shifted up by the status-bar height
+     but not made taller, leaving a clipped strip at the bottom. Extending html by that inset fixes it. */
+  html{height:calc(100% + env(safe-area-inset-top))}
+  body{height:100%}
+  html,body{margin:0;background:#000;overflow:hidden;overscroll-behavior:none;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;color:#fff}
-  #app{position:fixed;top:0;left:0;width:100vw;height:100vh;height:100lvh;overflow:hidden;background:#000}
+  #app{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;transition:opacity .35s ease}
   #lamp{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .35s ease}
   .fade{opacity:0}
@@ -127,6 +131,7 @@
   <div class="row"><span>Ambient sound</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
   <div class="row"><span style="opacity:.7">Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
 
+  <div class="hint" id="ver" style="margin:14px 0 0;font-size:10px;opacity:.3"></div>
   <div class="hint">Drag to stir · Tap a blob to split it<br>Two-finger swipe to change colours</div>
   <button class="done" id="btnDone">Done</button>
 </div>
@@ -174,6 +179,7 @@ function themeById(id) {
 let themeId = store.get("theme", "classic");
 let tgt = {}, cur = {};
 function applyTheme(id, instant) {
+  { const t0 = themeById(id); try { document.documentElement.style.background = t0.liqBot; document.body.style.background = t0.liqBot; } catch (e) {} }
   themeId = id; store.set("theme", id);
   const t = themeById(id);
   tgt = { hot: hex2rgb(t.hot), cool: hex2rgb(t.cool), liqBot: hex2rgb(t.liqBot), liqTop: hex2rgb(t.liqTop) };
@@ -308,6 +314,7 @@ function remap(ot, oScale) {
 function resize() {
   const ot = { ...tank }, oScale = u * avgR(), had = W > 0;
   [W, H] = screenSize();
+  H = Math.max(H, document.documentElement.clientHeight);
   appEl.style.width = W + "px"; appEl.style.height = H + "px";
   S = Math.min(window.devicePixelRatio || 1, 2) * 0.72;
   canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
@@ -812,6 +819,11 @@ document.addEventListener("gesturestart", e => e.preventDefault());
 document.addEventListener("dblclick", e => e.preventDefault());
 
 /* ---------- start / lifecycle ---------- */
+function heal() {
+  appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
+  resize();
+  $("#ver").textContent = `Lull v3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+}
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
 $("#start").addEventListener("click", () => {
@@ -819,12 +831,12 @@ $("#start").addEventListener("click", () => {
   started = true;
   $("#start").classList.add("gone");
   audio.init(); if (soundOn) audio.resume(); audio.level();
-  keepAwake(); wake();
+  keepAwake(); wake(); heal();
   if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) audio.suspend();
-  else { last = performance.now(); if (started && soundOn) audio.resume(); keepAwake(); }
+  else { last = performance.now(); if (started && soundOn) audio.resume(); keepAwake(); setTimeout(heal, 200); }
 });
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", () => setTimeout(resize, 300));
@@ -833,6 +845,7 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
 
 resize(); seedBlobs(); applyTheme(themeId, true); syncUI();
 requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
+setTimeout(heal, 300);
 })();
 </script>
 </body>
