@@ -509,23 +509,8 @@ function step1(dt) {
     else if (b.dying !== b) area += b.r * b.r;   // wax still melting into another blob counts
   }
 
-  // lava amount (only changes when the slider moves): new wax melts up out of the base,
-  // or the smallest blob sinks to the bottom and melts away there
-  if ((amtTimer -= dt) <= 0) {
-    const At = targetArea(), rmin = u * RANGE()[0];
-    amtTimer = 0.8;
-    if (area < At * 0.75 && room(3)) {
-      const r = Math.min(randR(), Math.sqrt(At - area));
-      if (r >= rmin * 0.7) {
-        const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h, 0.5, 0.95);
-        b.tr = r; b.noMerge = 4; blobs.push(b); alive++;
-      }
-    } else if (area > At * 1.3 && alive > 1) {
-      let sm = null;
-      for (const b of blobs) if (!b.dying && !b.p && (!sm || b.tr < sm.tr)) sm = b;
-      sm.dying = sm; alive--;
-    }
-  }
+  // (the amount of wax only changes when you move the Lava slider: see applyAmountNow. Nothing is ever
+  //  added or taken away automatically, so no blob drifts off and melts away on its own.)
 
   const bs = 1 + 0.14 * breathLvl, kw = 10, cx = tank.x0 + tank.w / 2;
   for (const b of blobs) {
@@ -535,7 +520,7 @@ function step1(dt) {
         let hops = 0;
         while (tg.dying && tg.dying !== tg && hops++ < 8) tg = tg.dying;           // target merged on: follow it
         if (tg.dying === tg || !blobs.includes(tg)) {                              // target dissolving or gone: free again
-          b.dying = null; b.off = null; b.mt = 0; b.r0 = undefined; if (!b.p) b.noMerge = 1; continue;
+          b.dying = null; b.off = null; b.mt = 0; b.r0 = undefined; b.tr = Math.max(b.r, 0.5); if (!b.p) b.noMerge = 1; continue;
         }
         if (tg !== b.dying) { b.off = [b.x - tg.x, b.y - tg.y]; b.dying = tg; }
       }
@@ -1323,7 +1308,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.10 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
