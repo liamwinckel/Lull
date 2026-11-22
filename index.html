@@ -8,42 +8,44 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lull">
 <meta name="theme-color" content="#000000">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-v2-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Lull — Lava Lamp</title>
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;color:#fff}
-  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;transition:opacity .35s ease}
-  #lamp{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .35s ease}
+  #app{position:fixed;top:0;left:0;width:100vw;height:100vh;height:100lvh;overflow:hidden;background:#000}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;transition:opacity .35s ease}
+  #lamp{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .35s ease}
   .fade{opacity:0}
   body.lampview #cue{bottom:calc(env(safe-area-inset-bottom) + 16px)}
   .seg.two{grid-template-columns:1fr 1fr}
   .seg.two button{padding:11px 2px;font-size:14px}
   button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent;cursor:pointer}
 
-  #cue{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 120px);text-align:center;
+  #cue{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 120px);text-align:center;
     font-weight:300;letter-spacing:.38em;text-transform:uppercase;font-size:14px;opacity:0;transition:opacity 1.2s ease;
     pointer-events:none;text-shadow:0 0 20px rgba(0,0,0,.6)}
-  #toast{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 26px);text-align:center;font-size:13px;
+  #toast{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top) + 26px);text-align:center;font-size:13px;
     letter-spacing:.28em;text-transform:uppercase;font-weight:400;opacity:0;transition:opacity .6s ease;pointer-events:none;
     text-shadow:0 0 16px rgba(0,0,0,.6)}
 
-  #controls{position:fixed;right:calc(env(safe-area-inset-right) + 18px);bottom:calc(env(safe-area-inset-bottom) + 18px);
+  #controls{position:absolute;right:calc(env(safe-area-inset-right) + 18px);bottom:calc(env(safe-area-inset-bottom) + 18px);
     display:flex;gap:12px;transition:opacity .9s ease}
   #controls.hidden{opacity:0;pointer-events:none}
   .ctl{width:50px;height:50px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(18,18,22,.32);
     backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:grid;place-items:center;padding:0}
   .ctl svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
 
-  #sheet{position:fixed;left:50%;bottom:0;width:min(100%,520px);box-sizing:border-box;max-height:80vh;overflow-y:auto;
+  #sheet{position:absolute;left:50%;bottom:0;width:min(100%,520px);box-sizing:border-box;max-height:80vh;overflow-y:auto;
     -webkit-overflow-scrolling:touch;padding:10px 22px calc(env(safe-area-inset-bottom) + 22px);
     background:rgba(14,14,18,.74);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);
     border-radius:24px 24px 0 0;border-top:1px solid rgba(255,255,255,.1);
     transform:translate(-50%,105%);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
   #sheet.open{transform:translate(-50%,0)}
-  .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin:4px auto 14px}
+  .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
+  .grab{padding:6px 0 16px;margin:-10px -22px 0;touch-action:none}
   h3{font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:20px 0 10px}
   h3:first-of-type{margin-top:4px}
   .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
@@ -75,17 +77,18 @@
   .hint{font-size:12px;line-height:1.7;opacity:.5;text-align:center;margin:22px 0 6px}
   .done{display:block;width:100%;margin-top:12px;padding:14px;border-radius:14px;border:none;background:rgba(255,255,255,.12);font-size:15px}
 
-  #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  #start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
     background:rgba(0,0,0,.28);transition:opacity 1.4s ease;text-align:center;padding:24px}
   #start.gone{opacity:0;pointer-events:none}
   #start .t{font-size:44px;font-weight:200;letter-spacing:.3em;margin-left:.3em}
   #start .s{font-size:13px;letter-spacing:.3em;text-transform:uppercase;opacity:.75;animation:pulse 3.2s ease-in-out infinite}
   #start .h{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 40px);font-size:12px;line-height:1.8;opacity:.5}
   @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.85}}
-  #nogl{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;opacity:.7}
+  #nogl{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;opacity:.7}
 </style>
 </head>
 <body>
+<div id="app">
 <canvas id="c"></canvas>
 <svg id="lamp" xmlns="http://www.w3.org/2000/svg"></svg>
 <div id="cue"></div>
@@ -99,7 +102,7 @@
 </div>
 
 <div id="sheet" aria-hidden="true">
-  <div class="handle"></div>
+  <div class="grab"><div class="handle"></div></div>
   <h3>View</h3>
   <div class="seg two" id="viewSeg">
     <button data-v="full">Full screen</button>
@@ -135,6 +138,7 @@
 </div>
 <div id="nogl">This device can’t run the lava renderer (WebGL is unavailable).</div>
 
+</div>
 <script>
 (() => {
 "use strict";
@@ -259,6 +263,20 @@ const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); 
 const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
+const appEl = $("#app");
+// iOS home-screen apps report a height that's short by the status bar, leaving a black strip at the bottom.
+// In standalone mode, use the physical screen size instead.
+function screenSize() {
+  let w = innerWidth, h = innerHeight;
+  const standalone = navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  if (standalone && screen.width && screen.height) {
+    const sw = Math.min(screen.width, screen.height), sh = Math.max(screen.width, screen.height);
+    const portrait = h >= w;
+    const fw = portrait ? sw : sh, fh = portrait ? sh : sw;
+    if (Math.abs(w - fw) < 4 && h < fh) h = fh;
+  }
+  return [w, h];
+}
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1;
@@ -289,7 +307,8 @@ function remap(ot, oScale) {
 }
 function resize() {
   const ot = { ...tank }, oScale = u * avgR(), had = W > 0;
-  W = innerWidth; H = innerHeight;
+  [W, H] = screenSize();
+  appEl.style.width = W + "px"; appEl.style.height = H + "px";
   S = Math.min(window.devicePixelRatio || 1, 2) * 0.72;
   canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
   gl.viewport(0, 0, canvas.width, canvas.height);
@@ -649,7 +668,42 @@ BREATHS.forEach(B => {
   $("#breathSeg").appendChild(b);
 });
 function openSheet() { sheetOpen = true; sheet.classList.add("open"); controls.classList.add("hidden"); }
-function closeSheet() { sheetOpen = false; sheet.classList.remove("open"); wake(); }
+function closeSheet() {
+  sheetOpen = false;
+  sheet.style.transition = ""; sheet.style.transform = "";
+  sheet.classList.remove("open"); wake();
+}
+// swipe the menu down to close it (from the handle anytime, or anywhere once it's scrolled to the top)
+let drag = null;
+sheet.addEventListener("touchstart", e => {
+  if (!sheetOpen || e.touches.length !== 1) return;
+  const onGrab = e.target.closest(".grab");
+  if (!onGrab && (sheet.scrollTop > 0 || e.target.closest("input"))) return;
+  drag = { y0: e.touches[0].clientY, t0: performance.now(), dy: 0, active: false, grab: !!onGrab };
+}, { passive: true });
+sheet.addEventListener("touchmove", e => {
+  if (!drag) return;
+  const dy = e.touches[0].clientY - drag.y0;
+  if (!drag.active) {
+    if (dy > 6 && (drag.grab || sheet.scrollTop <= 0)) drag.active = true;
+    else if (dy < -6 && !drag.grab) { drag = null; return; }
+    else return;
+  }
+  e.preventDefault();
+  drag.dy = Math.max(0, dy);
+  sheet.style.transition = "none";
+  sheet.style.transform = `translate(-50%, ${drag.dy}px)`;
+}, { passive: false });
+function endDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.active) return;
+  const v = d.dy / Math.max(1, performance.now() - d.t0);
+  if (d.dy > 110 || (v > 0.5 && d.dy > 30)) closeSheet();
+  else { sheet.style.transition = ""; sheet.style.transform = ""; }
+}
+sheet.addEventListener("touchend", endDrag);
+sheet.addEventListener("touchcancel", endDrag);
 $("#btnSettings").onclick = e => { e.stopPropagation(); openSheet(); };
 $("#btnDone").onclick = closeSheet;
 function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
@@ -773,6 +827,7 @@ document.addEventListener("visibilitychange", () => {
   else { last = performance.now(); if (started && soundOn) audio.resume(); keepAwake(); }
 });
 window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", () => setTimeout(resize, 300));
 
 try { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
 
