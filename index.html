@@ -802,18 +802,28 @@ function particleStep(dt, bs) {
   }
   for (const q of blobs) {
     if (!q.p || q.dying) continue;
-    if (!q.touched) q.touchT = 0;
+    if (!q.touched) q.touchT = Math.max(0, (q.touchT || 0) - dt * 0.6);   // contact memory fades, it doesn't reset
     q.touched = false;
     for (const b of big) {
       const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 0.95 + q.r * 0.7;
-      if (d >= R) continue;
+      const reach = R + (b.r + q.r) * 1.2 * Math.pow(absorb, 2);   // eager settings draw nearby droplets in
+      if (d >= reach) continue;
+      const nx = dx / d, ny = dy / d;
+      if (d >= R) {   // close but not touching: drift in (gently, scaled by the slider)
+        const f = 70 * g * absorb * absorb * dt; q.vx -= nx * f; q.vy -= ny * f; continue;
+      }
       if ((count > target || q.excess) && (q.age > 0.5 || q.excess)) { q.dying = b; count--; break; }   // an extra merges with the blob it touches
       q.touchT = (q.touchT || 0) + dt; q.touched = true;
-      if (q.age > 1 && q.touchT >= mergeAfter() * 0.8) { q.dying = b; count--; break; }   // Merging slider applies to droplets too
-      // otherwise it bumps off the blob's surface and slides around it (it can't pass through)
-      const nx = dx / d, ny = dy / d; q.x = b.x + nx * R; q.y = b.y + ny * R;
+      const need = mergeAfter() * 0.5;
+      if (q.age > 0.6 && q.touchT >= need) { q.dying = b; count--; break; }   // Merging slider applies to droplets too
+      // not yet: a soft push that fades as it gets closer to merging, and its motion settles onto the blob's
+      const ready = clamp(q.touchT / Math.max(need, 0.001), 0, 1), firm = (1 - absorb) * (1 - ready);
+      const over = (R - d) / R, f = over * 600 * g * firm * dt;
+      q.vx += nx * f; q.vy += ny * f;
+      const kv = relax(2, dt); q.vx += (b.vx - q.vx) * kv * ready; q.vy += (b.vy - q.vy) * kv * ready;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
-      if (vn < 0) { q.vx -= nx * vn * 1.4 * (1 - absorb); q.vy -= ny * vn * 1.4 * (1 - absorb); }
+      if (vn < 0) { q.vx -= nx * vn * relax(5, dt) * firm; q.vy -= ny * vn * relax(5, dt) * firm; }   // can't plough through
+      if (d < b.r * bs * 0.5 && absorb < 0.001) { q.x = b.x + nx * b.r * bs * 0.5; q.y = b.y + ny * b.r * bs * 0.5; }   // at "Never", never inside
     }
   }
   // droplets are never created here: they only break off when you stir the wax (see stir())
@@ -1392,7 +1402,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v11.2 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v11.3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
