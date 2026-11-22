@@ -339,7 +339,7 @@ let particles = store.get("particles", 0.5), light = store.get("light", 0.5), sh
 let W = 0, H = 0, S = 1, u = 1, g = 1;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
 const prof = s => { s = clamp(s, 0, 1); return s < 0.28 ? 0.8 + 0.2 * Math.sin(s / 0.28 * Math.PI / 2) : 1 - 0.45 * Math.pow((s - 0.28) / 0.72, 1.3); };
-const RANGE = () => view === "lamp" ? [0.1, 0.2] : [0.06, 0.13];       // blob radius range, as a fraction of u
+const RANGE = () => view === "lamp" ? [0.08, 0.16] : [0.06, 0.13];       // blob radius range, as a fraction of u
 const avgR = () => { const [a, b] = RANGE(); return (a + b) / 2; };
 function computeTank() {
   if (view === "lamp") {
@@ -354,17 +354,26 @@ function computeTank() {
   }
   u = Math.min(tank.w, tank.h); g = tank.h / 900;
 }
-function remap(ot, oScale) {
+// Move everything into the new tank keeping its place: same height, same position across the screen or glass,
+// same sizes relative to each other. Then scale the wax so its total exactly matches the new view's amount,
+// so switching views never adds, removes or merges anything.
+function remap(ot, oScale, oLamp) {
+  const ocx = ot.x0 + ot.w / 2, ncx = tank.x0 + tank.w / 2;
+  const ohw = y => oLamp ? oLamp.hwMax * prof((ot.y0 + ot.h - y) / ot.h) : ot.w / 2;
   const k = (u * avgR()) / oScale;
-  for (const b of blobs) {
-    b.x = tank.x0 + (b.x - ot.x0) / ot.w * tank.w;
-    b.y = tank.y0 + (b.y - ot.y0) / ot.h * tank.h;
-    b.r *= k; b.tr *= k; b.vx *= k; b.vy *= k;
-  }
-  bubbles = [];
+  const move = b => {
+    const fy = (b.y - ot.y0) / ot.h, fx = (b.x - ocx) / ohw(b.y);
+    b.y = tank.y0 + fy * tank.h; b.x = ncx + fx * halfWidthAt(b.y);
+  };
+  for (const b of blobs) { move(b); b.r *= k; b.tr *= k; b.vx *= k; b.vy *= k; }
+  for (const b of bubbles) { move(b); b.vx *= k; b.vy *= k; }
+  let A = 0;
+  for (const b of blobs) if (!b.p && !b.dying) A += b.tr * b.tr;
+  if (A > 0) { const f = Math.sqrt(targetArea() / A); for (const b of blobs) { b.r *= f; b.tr *= f; } }
+  amtTimer = 1.5;
 }
 function resize() {
-  const ot = { ...tank }, oScale = u * avgR(), had = W > 0;
+  const ot = { ...tank }, oScale = u * avgR(), oLamp = lampGeo, had = W > 0;
   [W, H] = screenSize();
   H = Math.max(H, document.documentElement.clientHeight);
   appEl.style.width = W + "px"; appEl.style.height = H + "px";
@@ -372,13 +381,13 @@ function resize() {
   canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
   gl.viewport(0, 0, canvas.width, canvas.height);
   computeTank();
-  if (had) remap(ot, oScale);
+  if (had) remap(ot, oScale, oLamp);
   drawLamp();
 }
 
 /* ---------- blobs & lava amount ---------- */
 let blobs = [];
-const targetCount = () => Math.max(1, Math.round(view === "lamp" ? 1 + amount * 8 : 2 + amount * 11));
+const targetCount = () => Math.max(1, Math.round(2 + amount * 11));   // same in both views, so switching keeps the same blobs
 const targetArea = () => { const [a, b] = RANGE(); return targetCount() * u * u * (a * a + a * b + b * b) / 3; };
 function mk(x, y, r, heat) { const b = { x, y, vx: 0, vy: 0, r, tr: r, heat, seed: Math.random() * 1000, noMerge: 0, dying: null }; return b; }
 const randR = () => { const [a, b] = RANGE(); return u * (a + Math.random() * (b - a)); };
@@ -535,7 +544,7 @@ function step1(dt) {
         const c = blobs[j]; if (c.dying || c.p) continue;
         if (!(a.tr < smallR || c.tr < smallR)) continue;
         const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
-        if (d < 4 * (a.r + c.r)) {
+        if (d < 4 * (a.r + c.r) && a.noMerge <= 0 && c.noMerge <= 0) {
           const f = 9 * g * dt; a.vx += dx / d * f; a.vy += dy / d * f; c.vx -= dx / d * f; c.vy -= dy / d * f;
         }
         const nr = Math.sqrt(a.tr * a.tr + c.tr * c.tr);
@@ -667,9 +676,9 @@ function setView(v) {
   viewSel = v; store.set("view", v);
   canvas.classList.add("fade"); svg.classList.add("fade");
   setTimeout(() => {
-    const ot = { ...tank }, oScale = u * avgR();
+    const ot = { ...tank }, oScale = u * avgR(), oLamp = lampGeo;
     view = v;
-    computeTank(); remap(ot, oScale); drawLamp();
+    computeTank(); remap(ot, oScale, oLamp); drawLamp();
     canvas.classList.remove("fade"); svg.classList.remove("fade");
   }, 360);
   syncUI();
@@ -1029,7 +1038,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
