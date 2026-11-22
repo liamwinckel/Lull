@@ -431,6 +431,25 @@ function showCue(txt) {
 
 /* ---------- simulation ---------- */
 let t = 0, amtTimer = 0;
+const contacts = new Set();
+// A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
+// finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
+let lastSplash = 0;
+function impact(b, nx, ny, speed) {
+  if (speed < 240 * g || t - lastSplash < 4 || t - (b.lastSplash || -99) < 8) return;
+  if (b.tr < u * avgR() * 0.85 || !room(1)) return;
+  let count = 0; for (const q of blobs) if (q.p && !q.dying) count++;
+  if (count >= Math.round(particles * 16)) return;
+  lastSplash = t; b.lastSplash = t;
+  const bs = 1 + 0.14 * breathLvl, tx = -ny, ty = nx, side = Math.random() < 0.5 ? -1 : 1;
+  // breaks off the face that hit, and splashes back off it, skewed to one side
+  const q = mkParticle(b.x + nx * b.r * bs * 0.8 + tx * b.r * 0.3 * side, b.y + ny * b.r * bs * 0.8 + ty * b.r * 0.3 * side, b.heat);
+  q.r = q.tr * 0.7; q.age = 0;
+  const v = Math.min(speed, 500 * g) * 0.35;
+  q.vx = -nx * v + tx * side * v * 0.6; q.vy = -ny * v + ty * side * v * 0.6;
+  q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));
+  blobs.push(q);
+}
 // Slow convection currents shared by everything in the tank. Built from wall-aligned modes of a stream
 // function, so the liquid circulates but never flows *into* any wall (nothing gets pinned to the sides).
 const FLOW_MODES = [[1, 1, 0.55, 0.043, 0.0, 1], [2, 1, 0.35, 0.031, 1.3, 0], [1, 2, 0.28, 0.027, 2.4, 0], [3, 1, 0.18, 0.019, 4.1, 0], [2, 2, 0.16, 0.023, 5.2, 0]];
@@ -517,6 +536,12 @@ function step1(dt) {
     // walls: gently steer back so the wax always stays fully in view
     const m = b.r * bs * 1.25, hw = halfWidthAt(b.y);
     const L = cx - hw + m, R = cx + hw - m, T = tank.y0 + m, B = tank.y0 + tank.h - m;
+    if (!b.p) {   // hard impacts against a wall can splash off a droplet
+      const inX = b.x < L ? -1 : b.x > R ? 1 : 0, inY = b.y < T ? -1 : b.y > B ? 1 : 0;
+      if (inX && !b.wallX) impact(b, inX, 0, Math.abs(b.vx) * (Math.sign(b.vx) === inX ? 1 : 0));
+      if (inY && !b.wallY) impact(b, 0, inY, Math.abs(b.vy) * (Math.sign(b.vy) === inY ? 1 : 0));
+      b.wallX = inX; b.wallY = inY;
+    }
     if (L > R) b.vx += (cx - b.x) * kw * dt;
     else { if (b.x < L) b.vx += (L - b.x) * kw * dt; if (b.x > R) b.vx -= (b.x - R) * kw * dt; }
     if (b.y < T) { b.vy += (T - b.y) * kw * dt; b.heat -= 0.2 * dt; }
@@ -532,6 +557,20 @@ function step1(dt) {
     if (b.x > cx + hl) { b.x = cx + hl; b.vx = -Math.abs(b.vx) * 0.3; }
     if (b.y < tank.y0 + hr) { b.y = tank.y0 + hr; b.vy = Math.abs(b.vy) * 0.3; }
     if (b.y > tank.y0 + tank.h - hr) { b.y = tank.y0 + tank.h - hr; b.vy = -Math.abs(b.vy) * 0.3; }
+  }
+
+  for (let i = 0; i < blobs.length; i++) {
+    const a = blobs[i]; if (a.dying || a.p) continue;
+    for (let j = i + 1; j < blobs.length; j++) {
+      const c = blobs[j]; if (c.dying || c.p) continue;
+      const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1, key = a.seed + c.seed;
+      const touching = d < (a.r + c.r) * bs * 0.85;
+      if (touching && !contacts.has(key)) {
+        const closing = -((c.vx - a.vx) * dx + (c.vy - a.vy) * dy) / d;
+        if (closing > 0) impact(a.tr > c.tr ? a : c, dx / d * (a.tr > c.tr ? 1 : -1), dy / d * (a.tr > c.tr ? 1 : -1), closing * 0.8);
+      }
+      if (touching) contacts.add(key); else contacts.delete(key);
+    }
   }
 
   // after a tap-split, the extra small blobs gently find each other and melt back together
@@ -931,30 +970,8 @@ $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); a
 /* ---------- touch ---------- */
 const pointers = new Map();
 let swipe = null, lastNoteT = 0;
-let gestureShed = false, lastShedT = 0;
-function shedFromStir(b, x, y, fvx, fvy, mag) {
-  const now = performance.now(), bs = 1 + 0.14 * breathLvl;
-  // A droplet only tears off when a fast flick slices through the *edge* of a large blob:
-  // a slow drag or a push through the middle just moves the wax. At most one per swipe, with a cooldown.
-  if (gestureShed || mag < 1100 || now - lastShedT < 2500 || !room(1)) return;
-  let count = 0; for (const q of blobs) if (q.p && !q.dying) count++;
-  if (count >= Math.round(particles * 16) || b.tr < u * avgR() * 0.85) return;
-  const d = Math.hypot(b.x - x, b.y - y), R = b.r * bs;
-  if (d < R * 0.6 || d > R * 1.0) return;
-  gestureShed = true; lastShedT = now;
-  // the sliced-off piece comes from the edge the finger cut through, flung the way the finger was going
-  const ex = (x - b.x) / d, ey = (y - b.y) / d, dx = fvx / mag, dy = fvy / mag;
-  const a = Math.atan2(ey + dy * 0.6, ex + dx * 0.6);
-  const q = mkParticle(b.x + Math.cos(a) * b.r * bs * 0.8, b.y + Math.sin(a) * b.r * bs * 0.8, b.heat);
-  q.r = q.tr * 0.7; q.age = 0;
-  const sp = Math.min(mag, 1600) * 0.12;
-  q.vx = b.vx * 0.3 + Math.cos(a) * sp; q.vy = b.vy * 0.3 + Math.sin(a) * sp;
-  q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));
-  blobs.push(q);
-}
 function stir(x, y, fvx, fvy, dtp) {
   const mag = Math.hypot(fvx, fvy), cap = 2600;
-  for (const b of [...blobs]) if (!b.p && !b.dying) shedFromStir(b, x, y, fvx, fvy, mag);
   if (mag > cap) { fvx *= cap / mag; fvy *= cap / mag; }
   const bs = 1 + 0.14 * breathLvl;
   for (const b of blobs) {
@@ -1010,7 +1027,6 @@ canvas.addEventListener("pointerdown", e => {
   if (!started) return;
   if (sheetOpen) { closeSheet(); return; }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-  gestureShed = false;
   const now = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
   if (pointers.size === 2) {
@@ -1051,7 +1067,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.2 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
