@@ -539,7 +539,12 @@ function step1(dt) {
         const k = relax((b.p ? 1.0 : 0.55) * ease, dt); b.x += (tg.x - b.x) * k; b.y += (tg.y - b.y) * k;
         const inside = Math.hypot(b.x - tg.x, b.y - tg.y) < tg.r * 0.9;
         if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.6 * dt * ease) - u * 0.003 * dt * ease);
-        if (!tg.dying && (!b.p || b.fromBig)) tg.tr = Math.sqrt(tg.tr * tg.tr + (before - b.r * b.r));
+        if (!tg.dying) {
+          const moved = Math.max(0, before - b.r * b.r), share = moved / Math.max(1, tg.tr * tg.tr + moved);
+          tg.heat += (b.heat - tg.heat) * share * 0.6;   // colour shifts gradually as its wax arrives
+          if (!b.p || b.fromBig) tg.tr = Math.sqrt(tg.tr * tg.tr + moved);
+        }
+        b.heat += (tg.heat - b.heat) * relax(0.5, dt);    // and the melting piece slowly takes on its colour
       } else if (b.fastMelt) {
         // removed by the lava slider: melts away on the spot, quickly
         b.x += b.vx * dt; b.y += b.vy * dt; b.r = Math.max(0, b.r * Math.exp(-4 * dt) - u * 0.01 * dt);
@@ -552,9 +557,11 @@ function step1(dt) {
       continue;
     }
     b.r += (b.tr - b.r) * Math.min(1, dt * (b.fast > 0 ? 6 : 1.2)); if (b.fast > 0) b.fast -= dt;
-    if (b.push) { const w = Math.sin(Math.min(1, b.push.t / 0.6) * Math.PI) * dt / 0.38; b.vx += b.push.ax * w; b.vy += b.push.ay * w; b.push.t += dt; if (b.push.t > 0.6) b.push = null; }
+    if (b.push) {   // strongest at the instant of the tap, then fades out: snappy but not jerky
+      const w = Math.exp(-b.push.t / 0.12) * dt / 0.12; b.vx += b.push.ax * w; b.vy += b.push.ay * w; b.push.t += dt; if (b.push.t > 0.5) b.push = null;
+    }
     if (b.trEnd !== undefined) {   // a split piece eases to its own size as it moves apart, keeping the total look steady
-      b.splitT = (b.splitT || 0) + dt; const e = Math.min(1, b.splitT / 1.1), sm = e * e * (3 - 2 * e);
+      b.splitT = (b.splitT || 0) + dt; const e = Math.min(1, b.splitT / 0.8), sm = e * (2 - e);
       b.tr = b.r0s + (b.trEnd - b.r0s) * sm; b.r = b.tr;
       if (e >= 1) { delete b.trEnd; delete b.r0s; }
     }
@@ -632,7 +639,6 @@ function step1(dt) {
             const tt = (touchTime.get(key) || 0) + dt * w; touchTime.set(key, tt);
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
-              big.heat = (big.heat * big.tr + sm.heat * sm.tr) / (big.tr + sm.tr);
               sm.dying = big; touchTime.delete(key); alive--;
               if (sm === a) break; else continue;
             }
@@ -672,7 +678,6 @@ function step1(dt) {
         const nr = Math.sqrt(a.tr * a.tr + c.tr * c.tr);
         if (a.noMerge <= 0 && c.noMerge <= 0 && d < (a.r + c.r) * 0.55 && nr < maxR) {
           const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
-          big.heat = (big.heat + sm.heat) / 2;
           sm.dying = big;
           if (--alive <= base) break outer;
         }
@@ -1199,6 +1204,7 @@ function tap(x, y) {
     c.r0s = startR; c.tr = startR; c.trEnd = cr;
     c.sq = hit.sq || 0; c.sqv = hit.sqv || 0; c.snx = hit.snx; c.sny = hit.sny;
     c.vx = hit.vx; c.vy = hit.vy;
+    const a1 = a0 + (i / k) * Math.PI * 2; c.x += Math.cos(a1) * hit.r * 0.08; c.y += Math.sin(a1) * hit.r * 0.08;
     c.push = { ax: Math.cos(a) * (150 + Math.random() * 30) * g, ay: Math.sin(a) * (150 + Math.random() * 30) * g, t: 0 };
     blobs.push(c);
   }
@@ -1248,7 +1254,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
