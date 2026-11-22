@@ -216,8 +216,8 @@ let volume = store.get("vol", 0.7);
 const canvas = $("#c");
 const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
 if (!gl) { $("#nogl").style.display = "flex"; $("#start").style.display = "none"; return; }
-const MAX = 48;   // metaball slots in the renderer (a wax blob uses 3 lobes, a particle 1)
-const load = () => blobs.reduce((n, b) => n + (b.p ? 1 : 3), 0);
+const MAX = 40;   // metaball slots in the renderer
+const load = () => blobs.length;
 const room = k => load() + k <= MAX;
 const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
@@ -360,7 +360,6 @@ function remap(ot, oScale) {
     b.x = tank.x0 + (b.x - ot.x0) / ot.w * tank.w;
     b.y = tank.y0 + (b.y - ot.y0) / ot.h * tank.h;
     b.r *= k; b.tr *= k; b.vx *= k; b.vy *= k;
-    if (b.nodes) for (const nd of b.nodes) { nd.ox *= k; nd.oy *= k; nd.vx *= k; nd.vy *= k; }
   }
   bubbles = [];
 }
@@ -381,7 +380,7 @@ function resize() {
 let blobs = [];
 const targetCount = () => Math.max(1, Math.round(view === "lamp" ? 1 + amount * 8 : 2 + amount * 11));
 const targetArea = () => { const [a, b] = RANGE(); return targetCount() * u * u * (a * a + a * b + b * b) / 3; };
-function mk(x, y, r, heat) { const b = { x, y, vx: 0, vy: 0, r, tr: r, heat, seed: Math.random() * 1000, noMerge: 0, dying: null }; initNodes(b); return b; }
+function mk(x, y, r, heat) { const b = { x, y, vx: 0, vy: 0, r, tr: r, heat, seed: Math.random() * 1000, noMerge: 0, dying: null }; return b; }
 const randR = () => { const [a, b] = RANGE(); return u * (a + Math.random() * (b - a)); };
 function seedBlobs() {
   blobs = [];
@@ -422,7 +421,7 @@ function showCue(txt) {
 }
 
 /* ---------- simulation ---------- */
-let t = 0, amtTimer = 0, pinchT = 3;
+let t = 0, amtTimer = 0;
 // Slow convection currents shared by everything in the tank. Built from wall-aligned modes of a stream
 // function, so the liquid circulates but never flows *into* any wall (nothing gets pinned to the sides).
 const FLOW_MODES = [[1, 1, 0.55, 0.043, 0.0, 1], [2, 1, 0.35, 0.031, 1.3, 0], [1, 2, 0.28, 0.027, 2.4, 0], [3, 1, 0.18, 0.019, 4.1, 0], [2, 2, 0.16, 0.023, 5.2, 0]];
@@ -439,52 +438,6 @@ function flowAt(x, y) {
 }
 const relax = (rate, dt) => 1 - Math.exp(-rate * dt);
 
-/* Each wax blob is a soft body: three lobes on damped springs around its centre. The metaball renderer
-   fuses them into one smooth shape, so the blob stretches when it speeds up, squashes against walls and
-   other blobs, wobbles when poked, and slowly morphs as its resting shape drifts. */
-const NODE_R = 0.64, NODE_D = 0.33, K_SPRING = 26, D_SPRING = 7.5;
-function initNodes(b, jiggle = 0) {
-  b.nodes = [0, 1, 2].map(() => ({ ox: 0, oy: 0, vx: (Math.random() - 0.5) * jiggle, vy: (Math.random() - 0.5) * jiggle }));
-  b.spin = (Math.random() < 0.5 ? -1 : 1) * (0.05 + Math.random() * 0.08);
-  for (let i = 0; i < 3; i++) { const [rx, ry] = restOffset(b, i); b.nodes[i].ox = rx; b.nodes[i].oy = ry; }
-}
-function restOffset(b, i) {
-  const ang = b.seed + t * b.spin + i * 2.0944;
-  const dist = b.r * NODE_D * (1 + 0.38 * Math.sin(t * 0.33 + b.seed * 1.7 + i * 2.1));
-  let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
-  // stretch along the direction of travel, slimmer across it (a rising blob becomes a teardrop)
-  const sp = Math.hypot(b.vx, b.vy);
-  if (sp > 0.5) {
-    const ux = b.vx / sp, uy = b.vy / sp, s = Math.min(0.55, sp / (40 * g) * 0.22);
-    const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux;
-    const al2 = al * (1 + s) + (al >= 0 ? 1 : -1) * b.r * 0.1 * s, pe2 = pe / (1 + 0.5 * s);
-    ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
-  }
-  return [ox, oy];
-}
-function stepNodes(b, ax, ay, dt, bs, cx) {
-  const am = Math.hypot(ax, ay), lim = 2500;
-  if (am > lim) { ax *= lim / am; ay *= lim / am; }
-  const rn = b.r * NODE_R * bs;
-  for (let i = 0; i < 3; i++) {
-    const n = b.nodes[i], [rx, ry] = restOffset(b, i);
-    n.vx += ((rx - n.ox) * K_SPRING - n.vx * D_SPRING - ax * 0.45) * dt;
-    n.vy += ((ry - n.oy) * K_SPRING - n.vy * D_SPRING - ay * 0.45) * dt;
-    n.ox += n.vx * dt; n.oy += n.vy * dt;
-    // lobes hitting a wall squash in and kick the whole blob back (a soft bounce)
-    const wx = b.x + n.ox, wy = b.y + n.oy, hw = halfWidthAt(wy);
-    const L = cx - hw + rn * 1.05, R = cx + hw - rn * 1.05, T = tank.y0 + rn * 1.05, B = tank.y0 + tank.h - rn * 1.05;
-    let px = 0, py = 0;
-    if (L > R) px = cx - wx; else if (wx < L) px = L - wx; else if (wx > R) px = R - wx;
-    if (wy < T) py = T - wy; else if (wy > B) py = B - wy;
-    if (px) { n.ox += px * 0.5; if (n.vx * px < 0) n.vx *= 0.2; b.vx += px * 2.2 * dt * 30; if (b.vx * px < 0) b.vx *= 1 - relax(4, dt); }
-    if (py) { n.oy += py * 0.5; if (n.vy * py < 0) n.vy *= 0.2; b.vy += py * 2.2 * dt * 30; if (b.vy * py < 0) b.vy *= 1 - relax(4, dt); }
-    // keep lobes from wandering too far from the body
-    const od = Math.hypot(n.ox, n.oy), mx = b.r * 0.75;
-    if (od > mx) { n.ox *= mx / od; n.oy *= mx / od; }
-  }
-}
-
 function step(dt) {
   // sub-step for stable springs when a frame runs long
   if (dt > 0.025) { const n = Math.ceil(dt / 0.02); for (let i = 0; i < n; i++) step1(dt / n); }
@@ -499,136 +452,100 @@ function step1(dt) {
     else if (b.dying !== b) area += b.r * b.r;   // wax still melting into another blob counts
   }
 
-  // lava amount: melt new wax in at the bottom, or let the smallest blob slowly dissolve away
+  // lava amount (only changes when the slider moves): new wax melts up out of the base,
+  // or the smallest blob sinks to the bottom and melts away there
   if ((amtTimer -= dt) <= 0) {
     const At = targetArea(), rmin = u * RANGE()[0];
     amtTimer = 0.8;
-    if (area < At * 0.9 && room(3)) {
+    if (area < At * 0.9 && room(1)) {
       const r = Math.min(randR(), Math.sqrt(At - area));
       if (r >= rmin * 0.7) {
-        const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h - r * 1.2, 0.5, 0.95);
+        const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h, 0.5, 0.95);
         b.tr = r; b.noMerge = 4; blobs.push(b); alive++;
       }
     } else if (area > At * 1.1 && alive > 1) {
       let sm = null;
       for (const b of blobs) if (!b.dying && !b.p && (!sm || b.tr < sm.tr)) sm = b;
-      sm.dying = sm; alive--;
+      sm.dying = sm; sm.heat = 0; alive--;
     }
   }
 
-  const bs = 1 + 0.14 * breathLvl, cx = tank.x0 + tank.w / 2;
+  const bs = 1 + 0.14 * breathLvl, kw = 10, cx = tank.x0 + tank.w / 2;
   for (const b of blobs) {
-    const pvx = b.vx, pvy = b.vy;
     if (b.dying) {
-      // melt: drift along with (and slowly into) the blob absorbing it, shrinking gently
       const tg = b.dying, before = b.r * b.r;
       if (tg !== b) {
+        // melt: drift along with (and slowly into) the blob absorbing it; only shrinks once inside it
         b.vx += (tg.vx - b.vx) * relax(2.5, dt); b.vy += (tg.vy - b.vy) * relax(2.5, dt);
         b.x += b.vx * dt; b.y += b.vy * dt;
         const k = relax(b.p ? 1.4 : 0.9, dt); b.x += (tg.x - b.x) * k; b.y += (tg.y - b.y) * k;
-        // shrink only once it's actually inside the blob, so it visibly flows in rather than fading out
         const inside = Math.hypot(b.x - tg.x, b.y - tg.y) < tg.r * 0.9;
         if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.75 * dt) - u * 0.004 * dt);
         if (!tg.dying && (!b.p || b.fromBig)) tg.tr = Math.sqrt(tg.tr * tg.tr + (before - b.r * b.r));
       } else {
-        const [fx, fy] = flowAt(b.x, b.y);
-        b.vx += (fx - b.vx) * relax(1.5, dt); b.vy += (fy - b.vy) * relax(1.5, dt);
-        b.x += b.vx * dt; b.y += b.vy * dt;
-        b.r = Math.max(0, b.r * Math.exp(-0.5 * dt) - u * 0.003 * dt);
+        // removed by the lava slider: sinks to the base and melts away there
+        b.vy += (30 * g - b.vy) * relax(1, dt); b.x += b.vx * dt; b.y += b.vy * dt;
+        b.y = Math.min(b.y, tank.y0 + tank.h - b.r * 0.4);
+        if (b.y > tank.y0 + tank.h - b.r * 1.2) b.r = Math.max(0, b.r * Math.exp(-0.6 * dt) - u * 0.003 * dt);
       }
-      if (b.nodes) stepNodes(b, 0, 0, dt, bs, cx);
       continue;
     }
-    b.r += (b.tr - b.r) * relax(0.8, dt);
+    b.r += (b.tr - b.r) * Math.min(1, dt * 1.2);
     b.noMerge = Math.max(0, b.noMerge - dt);
     if (b.p) b.age += dt;
 
-    // heating at the bottom, cooling at the top
-    const yn = (b.y - tank.y0) / tank.h, rate = clamp((u * avgR()) / b.r, 0.5, 1.6) * 0.75;
+    // the classic lava-lamp cycle: heat up at the bottom, rise, cool at the top, sink
+    const yn = (b.y - tank.y0) / tank.h, rate = clamp((u * avgR()) / b.r, 0.5, 1.6);
     if (yn > 0.78) b.heat += (yn - 0.78) * 1.6 * rate * dt;
     else if (yn < 0.28) b.heat -= (0.28 - yn) * 1.4 * rate * dt;
-    else b.heat -= 0.02 * dt;
+    else b.heat -= 0.025 * dt;
     b.heat = clamp(b.heat, 0, 1);
 
-    // velocity eases toward (fluid current + buoyancy): thick, viscous liquid, but momentum carries through
-    const [fx, fy] = flowAt(b.x, b.y);
-    const tvx = fx * (b.p ? 1.3 : 1) + Math.sin(t * 0.07 + b.seed) * 3 * g;
-    const tvy = fy - (b.heat - 0.5) * 2 * (b.p ? 12 : 24) * g;
-    const visc = b.p ? 1.4 : 0.7;
-    b.vx += (tvx - b.vx) * relax(visc, dt); b.vy += (tvy - b.vy) * relax(visc, dt);
+    b.vy += -(b.heat - 0.5) * 2 * (b.p ? 18 : 30) * g * dt;
+    b.vx += Math.sin(t * 0.23 + b.seed) * 7 * (tank.w / 400) * dt;
+    b.vy += Math.cos(t * 0.17 + b.seed * 1.3) * 4 * g * dt;
 
-    // particles: simple soft walls with a little bounce
-    if (b.p) {
-      const m = b.r * 1.1, hw = halfWidthAt(b.y);
-      if (b.x < cx - hw + m) { b.x = cx - hw + m; b.vx = Math.abs(b.vx) * 0.5 + 4 * g; }
-      if (b.x > cx + hw - m) { b.x = cx + hw - m; b.vx = -Math.abs(b.vx) * 0.5 - 4 * g; }
-      if (b.y < tank.y0 + m) { b.y = tank.y0 + m; b.vy = Math.abs(b.vy) * 0.5; b.heat -= 0.3 * dt; }
-      if (b.y > tank.y0 + tank.h - m) { b.y = tank.y0 + tank.h - m; b.vy = -Math.abs(b.vy) * 0.5; b.heat += 0.2 * dt; }
-    }
-    const sp = Math.hypot(b.vx, b.vy), cap = 650 * g;
+    // walls: gently steer back so the wax always stays fully in view
+    const m = b.r * bs * 1.25, hw = halfWidthAt(b.y);
+    const L = cx - hw + m, R = cx + hw - m, T = tank.y0 + m, B = tank.y0 + tank.h - m;
+    if (L > R) b.vx += (cx - b.x) * kw * dt;
+    else { if (b.x < L) b.vx += (L - b.x) * kw * dt; if (b.x > R) b.vx -= (b.x - R) * kw * dt; }
+    if (b.y < T) { b.vy += (T - b.y) * kw * dt; b.heat -= 0.2 * dt; }
+    if (b.y > B) { b.vy -= (b.y - B) * kw * dt; b.heat += 0.12 * dt; }
+
+    const damp = Math.exp(-0.9 * dt); b.vx *= damp; b.vy *= damp;
+    const sp = Math.hypot(b.vx, b.vy), cap = 700 * g;
     if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
     b.x += b.vx * dt; b.y += b.vy * dt;
 
-    if (b.nodes) {
-      stepNodes(b, (b.vx - pvx) / dt, (b.vy - pvy) / dt, dt, bs, cx);
-      // safety net only — the lobes normally keep the blob inside
-      const hl = Math.max(0, halfWidthAt(b.y) - b.r * bs * 0.55);
-      b.x = clamp(b.x, cx - hl, cx + hl);
-      b.y = clamp(b.y, tank.y0 + b.r * bs * 0.55, tank.y0 + tank.h - b.r * bs * 0.55);
-    }
+    const hr = b.r * bs * 1.02, hl = Math.max(0, halfWidthAt(b.y) - hr);
+    if (b.x < cx - hl) { b.x = cx - hl; b.vx = Math.abs(b.vx) * 0.3; }
+    if (b.x > cx + hl) { b.x = cx + hl; b.vx = -Math.abs(b.vx) * 0.3; }
+    if (b.y < tank.y0 + hr) { b.y = tank.y0 + hr; b.vy = Math.abs(b.vy) * 0.3; }
+    if (b.y > tank.y0 + tank.h - hr) { b.y = tank.y0 + tank.h - hr; b.vy = -Math.abs(b.vy) * 0.3; }
   }
 
-  // blob-to-blob. Blobs that can merge are drawn gently together and melt into one; blobs that can't
-  // (just split, or would get too big) slide against each other through thick liquid: no bounce, no hard stop.
-  const [ra, rb] = RANGE(), maxR = u * rb * 1.5, minAlive = Math.max(1, base - 2);
-  for (let i = 0; i < blobs.length; i++) {
-    const a = blobs[i]; if (a.dying || a.p) continue;
-    for (let j = i + 1; j < blobs.length; j++) {
-      const c = blobs[j]; if (c.dying || c.p || a.dying) continue;
-      const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, nx = dx / d, ny = dy / d;
-      const rr = (a.r + c.r) * bs * 0.9, far = rr * 2.2;
-      const canMerge = a.noMerge <= 0 && c.noMerge <= 0 && !a.joining && !c.joining && alive > minAlive && Math.hypot(a.tr, c.tr) < maxR;
-      if (canMerge && d < rr * 1.15) {
-        // touching: a neck forms and they draw together...
-        const pull = (rr * 1.15 - d) * relax(1.6, dt) * 0.5 + 8 * g * dt;
-        a.x += nx * pull; a.y += ny * pull; c.x -= nx * pull; c.y -= ny * pull;
-        const mvx = (a.vx * a.r + c.vx * c.r) / (a.r + c.r), mvy = (a.vy * a.r + c.vy * c.r) / (a.r + c.r), k = relax(1.5, dt);
-        a.vx += (mvx - a.vx) * k; a.vy += (mvy - a.vy) * k; c.vx += (mvx - c.vx) * k; c.vy += (mvy - c.vy) * k;
-        // ...and once they're well joined, the smaller one melts into the bigger
-        if (d < (a.r + c.r) * 0.72) {
-          const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
-          big.heat = (big.heat * big.tr + sm.heat * sm.tr) / (big.tr + sm.tr);
-          sm.dying = big; big.noMerge = 4; alive--;
-          big.joining = sm;
+  // after a tap-split, the extra small blobs gently find each other and melt back together
+  if (alive > base) {
+    const [ra, rb] = RANGE(), smallR = u * (ra + (rb - ra) * 0.45), maxR = u * rb * 1.45;
+    outer:
+    for (let i = 0; i < blobs.length; i++) {
+      const a = blobs[i]; if (a.dying || a.p) continue;
+      for (let j = i + 1; j < blobs.length; j++) {
+        const c = blobs[j]; if (c.dying || c.p) continue;
+        if (!(a.tr < smallR || c.tr < smallR)) continue;
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+        if (d < 4 * (a.r + c.r)) {
+          const f = 9 * g * dt; a.vx += dx / d * f; a.vy += dy / d * f; c.vx -= dx / d * f; c.vy -= dy / d * f;
         }
-      } else if (d < rr) {
-        // can't merge: ease apart, damping their approach like two drops in syrup
-        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
-        if (vn < 0) { const k = vn * relax(3, dt) * 0.5; a.vx += nx * k; a.vy += ny * k; c.vx -= nx * k; c.vy -= ny * k; }
-        const ma = a.r * a.r, mc = c.r * c.r, push = (rr - d) * relax(1.2, dt), wa = mc / (ma + mc);
-        a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
-      } else if (d < far && !canMerge) {
-        const push = (far - d) * relax(0.06, dt), wa = c.r / (a.r + c.r);
-        a.x -= nx * push * wa; a.y -= ny * push * wa * 0.5; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa) * 0.5;
+        const nr = Math.sqrt(a.tr * a.tr + c.tr * c.tr);
+        if (a.noMerge <= 0 && c.noMerge <= 0 && d < (a.r + c.r) * 0.55 && nr < maxR) {
+          const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
+          big.heat = (big.heat + sm.heat) / 2;
+          sm.dying = big;
+          if (--alive <= base) break outer;
+        }
       }
-    }
-  }
-
-  for (const b of blobs) if (b.joining && (!blobs.includes(b.joining) || b.joining.r < b.r * 0.25)) b.joining = null;
-
-  // pinch-off: when there are too few blobs, a big one slowly stretches and splits, top half breaking away
-  if ((pinchT -= dt) <= 0) {
-    pinchT = 2 + Math.random() * 2;
-    let big = null;
-    for (const b of blobs) if (!b.p && !b.dying && b.noMerge <= 0 && (!big || b.tr > big.tr)) big = b;
-    if (big && room(3) && (alive < base || (alive <= base + 1 && big.tr > u * rb * 1.15)) && big.tr > u * ra * 1.6) {
-      const up = big.heat > 0.5 ? -1 : 1, ang = Math.PI / 2 * up + (Math.random() - 0.5) * 0.8, dx = Math.cos(ang), dy = Math.sin(ang);
-      const cr = big.tr / Math.SQRT2;
-      const c = mk(big.x + dx * big.r * 0.2, big.y + dy * big.r * 0.2, big.r * 0.55, big.heat + up * -0.1);
-      c.tr = cr; big.tr = cr;
-      c.vx = big.vx + dx * 14 * g; c.vy = big.vy + dy * 14 * g; big.vx -= dx * 5 * g; big.vy -= dy * 5 * g;
-      c.noMerge = big.noMerge = 8 + Math.random() * 4;
-      blobs.push(c); alive++;
     }
   }
   particleStep(dt, bs);
@@ -639,7 +556,7 @@ function step1(dt) {
 /* ---------- particles: little droplets shed by the wax, which drift and melt back in ---------- */
 let partTimer = 0;
 const partR = () => u * RANGE()[0] * (0.3 + Math.random() * 0.3);
-function mkParticle(x, y, heat) { const b = mk(x, y, 0.3, heat); b.nodes = null; b.tr = partR(); b.p = true; b.age = 0; return b; }
+function mkParticle(x, y, heat) { const b = mk(x, y, 0.3, heat); b.tr = partR(); b.p = true; b.age = 0; return b; }
 function particleStep(dt, bs) {
   const target = Math.round(particles * 16);
   const big = blobs.filter(b => !b.p && !b.dying);
@@ -647,26 +564,25 @@ function particleStep(dt, bs) {
   for (const q of blobs) {
     if (!q.p || q.dying) continue;
     count++;
-    if (q.age < 4) continue;
+    if (q.age < 5) continue;
     for (const b of big) {
       if (Math.hypot(q.x - b.x, q.y - b.y) < b.r * bs + q.r * 0.3) {
         q.dying = b; count--;
-        for (const n of b.nodes) { n.vx += (q.x - b.x) / b.r * 6 * g; n.vy += (q.y - b.y) / b.r * 6 * g; }
         break;
       }
     }
   }
   if ((partTimer -= dt) > 0) return;
-  partTimer = 0.6 + Math.random() * 0.6;
+  partTimer = 1.5 + Math.random() * 2;
   if (count < target && room(1)) {
-    const movers = big.filter(b => Math.hypot(b.vx, b.vy) > 6 * g);
+    const movers = big.filter(b => Math.hypot(b.vx, b.vy) > 14 * g);
     if (movers.length) {
       const b = movers[Math.floor(Math.random() * movers.length)];
       const a = (b.vy < 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 1.6;  // trails behind its motion
       // starts just inside the parent's skin and slowly pulls away, so it visibly buds off
       const q = mkParticle(b.x + Math.cos(a) * b.r * bs * 0.72, b.y + Math.sin(a) * b.r * bs * 0.72, b.heat);
       q.r = q.tr * 0.6; q.age = 0;
-      q.vx = b.vx * 0.75 + Math.cos(a) * 9 * g; q.vy = b.vy * 0.75 + Math.sin(a) * 9 * g;
+      q.vx = b.vx * 0.35 + Math.cos(a) * 22 * g; q.vy = b.vy * 0.35 + Math.sin(a) * 22 * g;
       q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));   // the droplet's wax comes from its parent
       blobs.push(q);
     }
@@ -782,12 +698,7 @@ function render() {
   let n = 0;
   for (const b of [...blobs.filter(b => !b.p), ...blobs.filter(b => b.p)]) {
     const hv = b.heat + (b.dying && b.dying !== b ? 2 : 0);
-    if (b.nodes) {
-      for (const nd of b.nodes) {
-        if (n >= MAX) break;
-        arr[n * 4] = (b.x + nd.ox) * S; arr[n * 4 + 1] = (H - b.y - nd.oy) * S; arr[n * 4 + 2] = b.r * NODE_R * bs * S; arr[n * 4 + 3] = hv; n++;
-      }
-    } else if (n < MAX) {
+    if (n < MAX) {
       arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++;
     }
   }
@@ -1035,10 +946,6 @@ function stir(x, y, fvx, fvy, dtp) {
     b.vy += fvy * w * 0.24 * mass * Math.min(1, dtp * 20);
     b.vx += dx / d * w * 700 * g * dtp * mass;
     b.vy += dy / d * w * 700 * g * dtp * mass;
-    if (b.nodes) for (const n of b.nodes) {
-      const nx = b.x + n.ox - x, ny = b.y + n.oy - y, nd = Math.hypot(nx, ny) || 1, nr = b.r * 1.4;
-      if (nd < nr) { const ww = (1 - nd / nr); n.vx += (nx / nd * 110 * g + fvx * 0.07) * ww * Math.min(1, dtp * 20); n.vy += (ny / nd * 110 * g + fvy * 0.07) * ww * Math.min(1, dtp * 20); }
-    }
   }
   for (const b of bubbles) {
     const dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy) || 1, R = Math.min(W, H) * 0.25;
@@ -1062,8 +969,8 @@ function tap(x, y) {
   }
   const k = hit.tr > u * avgR() * 1.15 ? 3 : 2, cr = hit.tr / Math.sqrt(k);
   // make room by dropping a few particles if we're at the renderer's limit
-  if (cr < u * RANGE()[0] * 0.55 || !room(3 * (k - 1))) {
-    for (const n of hit.nodes) { n.vx += (Math.random() - 0.5) * 120 * g; n.vy += (Math.random() - 0.5) * 120 * g; }
+  if (cr < u * RANGE()[0] * 0.55 || !room(k - 1)) {
+    hit.vx += (Math.random() - 0.5) * 60 * g; hit.vy -= 30 * g;
     audio.bloop(0.2); return;
   }
   const a0 = Math.random() * Math.PI * 2;
@@ -1071,7 +978,7 @@ function tap(x, y) {
   for (let i = 0; i < k; i++) {
     const a = a0 + (i / k) * Math.PI * 2;
     const c = mk(hit.x + Math.cos(a) * hit.r * 0.25, hit.y + Math.sin(a) * hit.r * 0.25, hit.r * 0.75, hit.heat);
-    c.tr = cr; c.noMerge = 6 + Math.random() * 4; initNodes(c, 50 * g);
+    c.tr = cr; c.noMerge = 6 + Math.random() * 4;
     const sp = (90 + Math.random() * 50) * g;
     c.vx = hit.vx + Math.cos(a) * sp; c.vy = hit.vy + Math.sin(a) * sp;
     blobs.push(c);
@@ -1122,7 +1029,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v7.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
