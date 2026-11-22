@@ -442,7 +442,8 @@ const contacts = new Set();
 // Merging slider: touching wax combines once it has been in contact long enough. "Easily" = a moment,
 // lower = longer, "Never" = never. Gentle contact counts fully; a fast glancing bump barely counts.
 const touchTime = new Map();
-const mergeAfter = () => absorb <= 0.001 ? Infinity : 0.25 + 9 * Math.pow(1 - absorb, 2.2);
+const mergeAfter = () => absorb <= 0.001 ? Infinity : 9 * Math.pow(1 - absorb, 2.4);   // Easily = merges on contact
+const mergeCap = () => u * RANGE()[1] * (1.6 + 3 * absorb * absorb);                   // size limit loosens as it gets easier
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
 let lastSplash = 0;
@@ -618,8 +619,11 @@ function step1(dt) {
         // touch-to-merge, set by the Merging slider
         {
           const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), key = a.seed + c.seed;
-          if (d < (a.r + c.r) * bs * 0.78 && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < u * RANGE()[1] * 1.6) {
-            const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * Math.min(1, rel / (160 * g));
+          if (d < (a.r + c.r) * bs * 0.95 && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
+            const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
+            // the more eager the setting, the more touching wax draws together
+            const pull = (a.r + c.r) * absorb * relax(1.5, dt) * 0.15, ux = dx / (d || 1), uy = dy / (d || 1);
+            a.x += ux * pull; a.y += uy * pull; c.x -= ux * pull; c.y -= uy * pull;
             const tt = (touchTime.get(key) || 0) + dt * w; touchTime.set(key, tt);
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
@@ -635,11 +639,12 @@ function step1(dt) {
         const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.82;
         if (d >= rr) continue;
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
-        const push = (rr - d) * relax(6, dt);
+        const firm = 1 - absorb;   // at 'Easily' nothing bounces
+        const push = (rr - d) * relax(6, dt) * firm;
         a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
         if (vn < 0) {                                     // no bounce: they share the push, like wax in syrup
-          const jimp = -vn / (1 / ma + 1 / mc) * 0.9;
+          const jimp = -vn / (1 / ma + 1 / mc) * 0.9 * firm;
           a.vx -= jimp / ma * nx; a.vy -= jimp / ma * ny; c.vx += jimp / mc * nx; c.vy += jimp / mc * ny;
         }
       }
@@ -746,11 +751,11 @@ function particleStep(dt, bs) {
       if (d >= R) continue;
       if (count > target && q.age > 5) { q.dying = b; count--; break; }   // an extra: melts into the blob it meets
       q.touchT = (q.touchT || 0) + dt; q.touched = true;
-      if (q.age > 2 && q.touchT >= mergeAfter() * 0.8) { q.dying = b; count--; break; }   // Merging slider applies to droplets too
+      if (q.age > 1 && q.touchT >= mergeAfter() * 0.8) { q.dying = b; count--; break; }   // Merging slider applies to droplets too
       // otherwise it bumps off the blob's surface and slides around it (it can't pass through)
       const nx = dx / d, ny = dy / d; q.x = b.x + nx * R; q.y = b.y + ny * R;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
-      if (vn < 0) { q.vx -= nx * vn * 1.4; q.vy -= ny * vn * 1.4; }
+      if (vn < 0) { q.vx -= nx * vn * 1.4 * (1 - absorb); q.vy -= ny * vn * 1.4 * (1 - absorb); }
     }
   }
   // droplets are never created here: they only break off when you stir the wax (see stir())
@@ -1237,7 +1242,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
