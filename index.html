@@ -221,8 +221,8 @@ let volume = store.get("vol", 0.7);
 const canvas = $("#c");
 const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
 if (!gl) { $("#nogl").style.display = "flex"; $("#start").style.display = "none"; return; }
-const MAX = 40;   // metaball slots in the renderer
-const load = () => blobs.length;
+const MAX = 56;   // metaball slots in the renderer (a wax blob is drawn as 3 drifting lobes, a droplet as 1)
+const load = () => blobs.reduce((n, b) => n + (b.p ? 1 : 3), 0);
 const room = k => load() + k <= MAX;
 const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
@@ -538,7 +538,7 @@ function step1(dt) {
     b.heat = clamp(b.heat, 0, 1);
 
     b.vy += -(b.heat - 0.5) * 2 * (b.p ? 18 : 30) * g * dt;
-    b.vx += Math.sin(t * 0.23 + b.seed) * 7 * (tank.w / 400) * dt;
+    b.vx += Math.sin(t * 0.23 + b.seed) * 9 * (tank.w / 400) * dt;
     b.vy += Math.cos(t * 0.17 + b.seed * 1.3) * 4 * g * dt;
 
     // walls: gently steer back so the wax always stays fully in view
@@ -578,6 +578,31 @@ function step1(dt) {
         if (closing > 0) impact(a.tr > c.tr ? a : c, dx / d * (a.tr > c.tr ? 1 : -1), dy / d * (a.tr > c.tr ? 1 : -1), closing * 0.8);
       }
       if (touching) contacts.add(key); else contacts.delete(key);
+    }
+  }
+
+  {
+    const [ra, rb] = RANGE(), smallR = u * (ra + (rb - ra) * 0.45);
+    for (let i = 0; i < blobs.length; i++) {
+      const a = blobs[i]; if (a.dying || a.p) continue;
+      for (let j = i + 1; j < blobs.length; j++) {
+        const c = blobs[j]; if (c.dying || c.p) continue;
+        const regrouping = alive > base && (a.tr < smallR || c.tr < smallR) && a.noMerge <= 0 && c.noMerge <= 0;
+        if (regrouping) continue;
+        if (Math.min(a.tr, c.tr) > Math.max(a.tr, c.tr) * 0.62) continue;   // similar sizes flow through and fuse, like the original
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.95, near = rr * 1.5;
+        if (d >= near) continue;
+        const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
+        // pressed together: ease apart firmly; merely close: drift apart slowly so pairs don't travel stuck together
+        const push = d < rr ? (rr - d) * relax(8, dt) + (near - rr) * relax(0.5, dt) * 0.3 : (near - d) * relax(0.5, dt) * 0.3;
+        a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
+        if (d >= rr) continue;
+        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
+        if (vn < 0) {                                     // no bounce: they share the push, like wax in syrup
+          const jimp = -vn / (1 / ma + 1 / mc) * 0.9;
+          a.vx -= jimp / ma * nx; a.vy -= jimp / ma * ny; c.vx += jimp / mc * nx; c.vy += jimp / mc * ny;
+        }
+      }
     }
   }
 
@@ -675,10 +700,14 @@ function particleStep(dt, bs) {
   for (const q of blobs) {
     if (!q.p || q.dying) continue;
     for (const b of big) {
-      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs + q.r * 1.3;
+      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 1.05 + q.r * 2.4;
       if (d >= R) continue;
       if (count > target && q.age > 5) { q.dying = b; count--; break; }   // an extra: melts into the blob it meets
-      q.vx += dx / d * (R - d) * 6 * dt; q.vy += dy / d * (R - d) * 6 * dt; // otherwise it slides around the blob
+      // otherwise it bumps off the blob's surface and slides around it (it can't pass through)
+      const nx = dx / d, ny = dy / d; q.x = b.x + nx * R; q.y = b.y + ny * R;
+      const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
+      if (vn < 0) { q.vx -= nx * vn * 1.4; q.vy -= ny * vn * 1.4; }
+      q.vx += nx * 10 * g * dt * 20; q.vy += ny * 10 * g * dt * 20;   // and drifts clear instead of resting on it
     }
   }
   // droplets are never created here: they only break off when you stir the wax (see stir())
@@ -797,8 +826,19 @@ function render() {
   let n = 0;
   for (const b of [...blobs.filter(b => !b.p), ...blobs.filter(b => b.p)]) {
     const hv = b.heat + (b.dying && b.dying !== b ? 2 : 0);
-    if (n < MAX) {
-      arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++;
+    if (b.p) {
+      if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
+      continue;
+    }
+    const sp = Math.hypot(b.vx, b.vy), st = Math.min(0.35, sp / (60 * g) * 0.18), ux = sp > 0.1 ? b.vx / sp : 0, uy = sp > 0.1 ? b.vy / sp : 1;
+    for (let i = 0; i < 3 && n < MAX; i++) {
+      const s = b.seed, ang = s + i * 2.094 + 0.6 * Math.sin(t * 0.045 + s * 0.7 + i);
+      const dist = b.r * (0.2 + 0.13 * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
+      let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
+      const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
+      ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
+      const lr = b.r * 0.74 * (1 + 0.08 * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
+      arr[n * 4] = (b.x + ox) * S; arr[n * 4 + 1] = (H - b.y - oy) * S; arr[n * 4 + 2] = lr * bs * S; arr[n * 4 + 3] = hv; n++;
     }
   }
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
@@ -1137,7 +1177,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.4 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.5 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
