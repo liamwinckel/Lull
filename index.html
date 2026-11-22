@@ -35,35 +35,52 @@
     letter-spacing:.28em;text-transform:uppercase;font-weight:400;opacity:0;transition:opacity .6s ease;pointer-events:none;
     text-shadow:0 0 16px rgba(0,0,0,.6)}
 
-  #controls{position:absolute;right:calc(env(safe-area-inset-right) + 18px);bottom:calc(env(safe-area-inset-bottom) + 18px);
-    display:flex;gap:12px;transition:opacity .9s ease}
+  /* dock: a slim floating bar of icons */
+  #controls{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);
+    display:flex;gap:4px;padding:6px;border-radius:32px;background:rgba(16,12,14,.5);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);transition:opacity .9s ease}
   #controls.hidden{opacity:0;pointer-events:none}
-  .ctl{width:50px;height:50px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(18,18,22,.32);
-    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:grid;place-items:center;padding:0}
-  .ctl svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+  .ctl{width:48px;height:48px;border-radius:50%;border:none;background:transparent;display:grid;place-items:center;padding:0;transition:background .25s}
+  .ctl.on{background:rgba(255,255,255,.18)}
+  .ctl svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
 
-  #sheet{position:absolute;left:50%;bottom:0;width:min(100%,520px);box-sizing:border-box;max-height:80vh;overflow-y:auto;
-    -webkit-overflow-scrolling:touch;padding:10px 22px calc(env(safe-area-inset-bottom) + 22px);
-    background:rgba(14,14,18,.74);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);
-    border-radius:24px 24px 0 0;border-top:1px solid rgba(255,255,255,.1);
-    transform:translate(-50%,105%);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
-  #sheet.open{transform:translate(-50%,0)}
-  #sheet{transition:transform .5s cubic-bezier(.2,.8,.2,1),background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
-  #sheet > *{transition:opacity .35s}
-  #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-top-color:transparent}
-  #sheet.peek > *:not(.active){opacity:.07}
+  /* card: one small popover above the dock for the chosen group */
+  #sheet{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);width:min(calc(100% - 32px),420px);box-sizing:border-box;
+    max-height:62vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 16px;
+    background:rgba(16,12,14,.72);backdrop-filter:blur(22px) saturate(1.3);-webkit-backdrop-filter:blur(22px) saturate(1.3);
+    border-radius:22px;border:1px solid rgba(255,255,255,.08);
+    opacity:0;pointer-events:none;transform:translate(-50%,14px) scale(.98);transform-origin:50% 100%;
+    transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s ease,background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
+  #sheet.open{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+  #sheet .card{display:none}
+  #sheet .card.show{display:block}
+  #sheet .card > *,#sheet .grab{transition:opacity .35s}
+  #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:transparent}
+  #sheet.peek .card > *:not(.active),#sheet.peek .grab{opacity:.07}
   #sheet.peek .row.active{background:rgba(14,14,18,.55);border-radius:14px;padding-left:10px;padding-right:10px}
+  .chead{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 12px;font-size:15px;font-weight:600}
+  .chead span + span{font-size:12px;font-weight:400;opacity:.62}
   .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
-  .grab{padding:6px 0 16px;margin:-10px -22px 0;touch-action:none}
+  .grab{padding:8px 0 10px;margin:0 -16px;touch-action:none}
   h3{font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:20px 0 10px}
   h3:first-of-type{margin-top:4px}
-  .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .chip{background:none;border:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;opacity:.75}
-  .chip .sw{width:100%;aspect-ratio:1;border-radius:16px;border:2px solid transparent;box-sizing:border-box;position:relative;overflow:hidden}
+  .chips{display:flex;gap:10px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch}
+  .chip{flex:none;background:none;border:none;padding:0;font-size:0;opacity:.85}
+  .chip .sw{width:42px;height:42px;border-radius:50%;border:2px solid transparent;box-sizing:border-box;position:relative;overflow:hidden}
   .chip.on{opacity:1}
   .chip.on .sw{border-color:#fff}
   .sw i{position:absolute;border-radius:50%;filter:blur(1px)}
-  .custom{display:flex;gap:12px;margin-top:12px}
+  .custom{display:flex;gap:8px;margin:12px 0}
+  .presets{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .preset{flex:none;display:flex;align-items:center;border-radius:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+  .preset > button{border:none;background:none;padding:9px 6px 9px 14px;font-size:14px;color:#fff}
+  .preset > .del{padding:9px 12px 9px 6px;opacity:.55;font-size:13px}
+  .preset.on{border-color:#fff}
+  .save-p{flex:none;border:1px dashed rgba(255,255,255,.35);background:none;border-radius:20px;padding:9px 14px;font-size:14px;color:#fff}
+  .pform{display:none;gap:8px;margin-top:10px}
+  .pform.show{display:flex}
+  .pform input{flex:1;min-width:0;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;padding:10px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
+  .pform button{border:none;border-radius:12px;padding:10px 16px;background:#fff;color:#111;font-weight:600;font-size:14px}
   .custom label{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;background:rgba(255,255,255,.06);
     border-radius:12px;padding:8px 10px}
   .custom input[type=color]{-webkit-appearance:none;appearance:none;width:28px;height:28px;border:none;border-radius:50%;
@@ -74,7 +91,8 @@
   .seg button{border:none;background:none;border-radius:10px;padding:9px 2px;font-size:13px;line-height:1.2}
   .seg button small{display:block;font-size:10px;opacity:.55;margin-top:2px}
   .seg button.on{background:rgba(255,255,255,.16)}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 2px;font-size:15px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 2px;font-size:15px}
+  .row > span:first-child{min-width:68px}
   .row + .row{border-top:1px solid rgba(255,255,255,.07)}
   .switch{width:50px;height:30px;border-radius:15px;background:rgba(255,255,255,.18);border:none;position:relative;transition:background .3s;flex:none;padding:0}
   .switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .3s}
@@ -103,58 +121,74 @@
 <div id="cue"></div>
 <div id="toast"></div>
 
-<div id="controls" class="hidden">
-  <button class="ctl" id="btnSound" aria-label="Sound"></button>
-  <button class="ctl" id="btnSettings" aria-label="Settings">
-    <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
-  </button>
+<div id="controls" class="hidden" role="toolbar" aria-label="Lull controls">
+  <button class="ctl" data-card="look" aria-label="Colours and look">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.3"/><circle cx="12.5" cy="7.5" r="1.3"/><circle cx="15.8" cy="11" r="1.3"/><path d="M12 21c-1.5 0-2-1-2-2s1-2 2.5-2"/></svg></button>
+  <button class="ctl" data-card="lava" aria-label="Lava, merging and stirring">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="14.5" r="5"/><circle cx="16.5" cy="7" r="3"/></svg></button>
+  <button class="ctl" data-card="view" aria-label="Full screen or lamp">
+    <svg viewBox="0 0 24 24"><path d="M9.5 2h5l1.2 5H8.3z"/><path d="M8.3 7C7 11.5 7 15.5 8 19h8c1-3.5 1-7.5-.3-12"/><path d="M7 19h10l1.2 3H5.8z"/></svg></button>
+  <button class="ctl" data-card="calm" aria-label="Breathing">
+    <svg viewBox="0 0 24 24"><path d="M3 12c2.2-4.5 4.4-4.5 6.6 0s4.4 4.5 6.6 0 3.3-3 4.8-1.5"/></svg></button>
+  <button class="ctl" data-card="sound" id="btnSound" aria-label="Sound"></button>
+  <button class="ctl" data-card="presets" aria-label="Presets">
+    <svg viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg></button>
 </div>
 
 <div id="sheet" aria-hidden="true">
   <div class="grab"><div class="handle"></div></div>
-  <h3>View</h3>
-  <div class="seg two" id="viewSeg">
-    <button data-v="full">Full screen</button>
-    <button data-v="lamp">Lamp</button>
-  </div>
-  <div class="row" style="margin-top:6px"><span>Lava</span>
-    <span style="font-size:12px;opacity:.5">Less</span><input type="range" id="amt" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">More</span></div>
-  <div class="row"><span>Stirring</span>
-    <span style="font-size:12px;opacity:.5">Gentle</span><input type="range" id="stirk" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Strong</span></div>
-  <div class="row"><span>Merging</span>
-    <span style="font-size:12px;opacity:.5">Never</span><input type="range" id="absorb" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Easily</span></div>
-  <div class="row"><span>Bubbles</span>
-    <span style="font-size:12px;opacity:.5">None</span><input type="range" id="bub" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Lots</span></div>
-  <div class="row"><span>Particles</span>
-    <span style="font-size:12px;opacity:.5">None</span><input type="range" id="part" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Lots</span></div>
 
-  <h3>Colours</h3>
-  <div class="chips" id="chips"></div>
-  <div class="custom">
-    <label><input type="color" id="cHot">Hot wax</label>
-    <label><input type="color" id="cCool">Cool wax</label>
-    <label><input type="color" id="cLiq">Liquid</label>
-  </div>
+  <section class="card" data-card="look">
+    <div class="chead"><span>Colours</span><span id="themeName"></span></div>
+    <div class="chips" id="chips"></div>
+    <div class="custom">
+      <label><input type="color" id="cHot">Hot</label>
+      <label><input type="color" id="cCool">Cool</label>
+      <label><input type="color" id="cLiq">Liquid</label>
+    </div>
+    <div class="seg two" id="styleSeg" style="margin-bottom:4px">
+      <button data-s="soft">Soft</button>
+      <button data-s="3d">Realistic 3D</button>
+    </div>
+    <div class="row"><span>Lighting</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
+  </section>
 
-  <h3>Look</h3>
-  <div class="seg two" id="styleSeg" style="margin-bottom:6px">
-    <button data-s="soft">Soft</button>
-    <button data-s="3d">Realistic 3D</button>
-  </div>
-  <div class="row"><span style="min-width:70px">Lighting</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
-  <div class="row"><span style="min-width:70px">Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
+  <section class="card" data-card="lava">
+    <div class="chead"><span>Lava</span><span>drag to stir · tap a blob to split</span></div>
+    <div class="row"><span>Amount</span><input type="range" id="amt" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Merging</span><input type="range" id="absorb" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Stirring</span><input type="range" id="stirk" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Bubbles</span><input type="range" id="bub" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Particles</span><input type="range" id="part" min="0" max="1" step="0.01"></div>
+  </section>
 
-  <h3>Breathing</h3>
-  <div class="seg" id="breathSeg"></div>
-  <div class="row" style="margin-top:6px"><span>Show breathing cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
+  <section class="card" data-card="view">
+    <div class="chead"><span>View</span></div>
+    <div class="seg two" id="viewSeg">
+      <button data-v="full">Full screen</button>
+      <button data-v="lamp">Lamp</button>
+    </div>
+  </section>
 
-  <h3>Sound</h3>
-  <div class="row"><span>Ambient sound</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
-  <div class="row"><span style="opacity:.7">Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
+  <section class="card" data-card="calm">
+    <div class="chead"><span>Breathing</span></div>
+    <div class="seg" id="breathSeg"></div>
+    <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
+  </section>
 
-  <div class="hint" id="ver" style="margin:14px 0 0;font-size:10px;opacity:.3"></div>
-  <div class="hint">Drag to stir · Tap a blob to split it<br>Two-finger swipe to change colours</div>
-  <button class="done" id="btnDone">Done</button>
+  <section class="card" data-card="sound">
+    <div class="chead"><span>Sound</span></div>
+    <div class="row"><span>Ambient</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
+    <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
+    <div class="hint" id="ver" style="margin:10px 0 0;font-size:10px;opacity:.3"></div>
+  </section>
+
+  <section class="card" data-card="presets">
+    <div class="chead"><span>Presets</span><span>save your setup</span></div>
+    <div class="presets" id="presetList"></div>
+    <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form>
+  </section>
 </div>
 
 <div id="start">
@@ -1071,6 +1105,48 @@ function showToast(txt) {
 }
 const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
+/* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
+const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
+  particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume });
+let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
+function renderPresets() {
+  const box = $("#presetList"); box.innerHTML = "";
+  presets.forEach((p, i) => {
+    const el = document.createElement("div"); el.className = "preset" + (p.name === activePreset ? " on" : "");
+    const go = document.createElement("button"); go.textContent = p.name; go.onclick = () => applyPreset(p);
+    const del = document.createElement("button"); del.className = "del"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete " + p.name);
+    del.onclick = () => { if (del.dataset.armed) { presets.splice(i, 1); store.set("presets", presets); renderPresets(); } else { del.dataset.armed = 1; del.textContent = "Delete?"; setTimeout(() => { delete del.dataset.armed; del.textContent = "✕"; }, 2500); } };
+    el.append(go, del); box.appendChild(el);
+  });
+  const add = document.createElement("button"); add.className = "save-p"; add.textContent = "+ Save current";
+  add.onclick = () => { $("#presetForm").classList.toggle("show"); setTimeout(() => $("#presetName").focus(), 50); };
+  box.appendChild(add);
+}
+$("#presetForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = ($("#presetName").value || "").trim() || "Preset " + (presets.length + 1);
+  const i = presets.findIndex(p => p.name === name), p = { name, s: PRESET_KEYS() };
+  if (i >= 0) presets[i] = p; else presets.push(p);
+  store.set("presets", presets); activePreset = name; store.set("activePreset", name);
+  $("#presetName").value = ""; $("#presetForm").classList.remove("show"); $("#presetName").blur();
+  renderPresets(); showToast("Saved “" + name + "”");
+});
+function applyPreset(p) {
+  const v = p.s;
+  custom = { ...custom, ...(v.custom || {}) }; store.set("custom", custom);
+  amount = v.amount ?? amount; absorb = v.absorb ?? absorb; stirSens = v.stir ?? stirSens; bubbleAmt = v.bubbles ?? bubbleAmt;
+  particles = v.particles ?? particles; style = v.style ?? style; light = v.light ?? light; shadow = v.shadow ?? shadow;
+  breathId = v.breath ?? breathId; cueOn = v.cue ?? cueOn; volume = v.vol ?? volume;
+  for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, breath: breathId, cue: cueOn, vol: volume })) store.set(k, val);
+  breathT = 0; breathPhase = -1;
+  applyTheme(v.theme || themeId);
+  if (v.view && v.view !== viewSel) setView(v.view); else { applyAmountNow(); }
+  applyBubblesNow(); applyParticlesNow();
+  setSound(v.sound ?? soundOn);
+  activePreset = p.name; store.set("activePreset", p.name);
+  renderPresets(); syncUI(); showToast(p.name);
+}
+
 function syncUI() {
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
@@ -1092,9 +1168,11 @@ function renderChips() {
       <i style="width:46%;height:46%;left:14%;top:44%;background:radial-gradient(circle at 40% 35%,${th.hot},${th.cool})"></i>
       <i style="width:30%;height:30%;left:56%;top:14%;background:radial-gradient(circle at 40% 35%,${th.hot},${th.cool})"></i>
     </div>${th.name}`;
+    b.setAttribute("aria-label", th.name);
     b.onclick = () => { applyTheme(id); };
     box.appendChild(b);
   });
+  const tn = $("#themeName"); if (tn) tn.textContent = themeById(themeId).name;
 }
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
@@ -1111,11 +1189,21 @@ BREATHS.forEach(B => {
   };
   $("#breathSeg").appendChild(b);
 });
-function openSheet() { sheetOpen = true; sheet.classList.add("open"); controls.classList.add("hidden"); }
+let openCard = null;
+function openSheet(name) {
+  openCard = name; sheetOpen = true;
+  sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
+  controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
+  sheet.style.transition = ""; sheet.style.transform = "";
+  sheet.scrollTop = 0; sheet.classList.add("open");
+  controls.classList.remove("hidden"); clearTimeout(idleTimer);
+}
 function closeSheet() {
   sheetOpen = false;
   sheet.style.transition = ""; sheet.style.transform = "";
-  sheet.classList.remove("open"); wake();
+  sheet.classList.remove("open"); openCard = null;
+  controls.querySelectorAll(".ctl").forEach(c => c.classList.remove("on"));
+  wake();
 }
 // swipe the menu down to close it (from the handle anytime, or anywhere once it's scrolled to the top)
 let drag = null;
@@ -1148,10 +1236,8 @@ function endDrag() {
 }
 sheet.addEventListener("touchend", endDrag);
 sheet.addEventListener("touchcancel", endDrag);
-$("#btnSettings").onclick = e => { e.stopPropagation(); openSheet(); };
-$("#btnDone").onclick = closeSheet;
+controls.querySelectorAll(".ctl").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
 function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
-$("#btnSound").onclick = e => { e.stopPropagation(); setSound(!soundOn); showToast(soundOn ? "Sound on" : "Sound off"); wake(); };
 $("#swSound").onclick = () => setSound(!soundOn);
 $("#swCue").onclick = () => {
   cueOn = !cueOn; store.set("cue", cueOn);
@@ -1161,6 +1247,9 @@ $("#swCue").onclick = () => {
 [...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
+document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
+  if (activePreset) { activePreset = null; store.set("activePreset", null); renderPresets(); }
+}));
 $("#stirk").oninput = e => { stirSens = +e.target.value; store.set("stir", stirSens); };
 $("#absorb").oninput = e => { absorb = +e.target.value; store.set("absorb", absorb); };
 $("#bub").oninput = e => { bubbleAmt = +e.target.value; store.set("bubbles", bubbleAmt); applyBubblesNow(); };
@@ -1313,7 +1402,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.11 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v11 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -1334,7 +1423,7 @@ window.addEventListener("orientationchange", () => setTimeout(resize, 300));
 
 try { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
 
-resize(); seedBlobs(); applyTheme(themeId, true); syncUI();
+resize(); seedBlobs(); applyTheme(themeId, true); syncUI(); renderPresets();
 requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
 setTimeout(heal, 300);
 })();
