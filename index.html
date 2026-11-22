@@ -223,7 +223,7 @@ let volume = store.get("vol", 0.7);
 const canvas = $("#c");
 const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
 if (!gl) { $("#nogl").style.display = "flex"; $("#start").style.display = "none"; return; }
-const MAX = 56;   // metaball slots in the renderer (a wax blob is drawn as 3 drifting lobes, a droplet as 1)
+const MAX = 64;   // metaball slots in the renderer (a wax blob is drawn as 3 drifting lobes, a droplet as 1)
 const load = () => blobs.reduce((n, b) => n + (b.p ? 1 : 3), 0);
 const room = k => load() + k <= MAX;
 const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
@@ -514,7 +514,7 @@ function step1(dt) {
   if ((amtTimer -= dt) <= 0) {
     const At = targetArea(), rmin = u * RANGE()[0];
     amtTimer = 0.8;
-    if (area < At * 0.75 && room(1)) {
+    if (area < At * 0.75 && room(3)) {
       const r = Math.min(randR(), Math.sqrt(At - area));
       if (r >= rmin * 0.7) {
         const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h, 0.5, 0.95);
@@ -536,17 +536,18 @@ function step1(dt) {
         // so the merged shape keeps both parts (a lopsided, two-lobed form) and only gradually rounds off
         b.mt = (b.mt || 0) + dt;
         if (!b.off) b.off = [b.x - tg.x, b.y - tg.y];
-        const settle = Math.exp(-dt * (b.p ? 0.8 : 0.16));
+        const settle = Math.exp(-dt * (b.p ? 2.2 : 0.16));
         b.off[0] *= settle; b.off[1] *= settle;
         const e = Math.min(1, b.mt / 0.7), ee = e * e * (3 - 2 * e);           // blend from its own motion into riding along
         const fx = b.x + b.vx * dt, fy = b.y + b.vy * dt, rx = tg.x + b.off[0], ry = tg.y + b.off[1];
         b.x = fx + (rx - fx) * ee; b.y = fy + (ry - fy) * ee;
         b.vx += (tg.vx - b.vx) * relax(2, dt); b.vy += (tg.vy - b.vy) * relax(2, dt);
-        b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.7 : 0.22)) - u * (b.p ? 0.004 : 0.002) * dt);
+        const sunk = !b.p || Math.hypot(b.off[0], b.off[1]) < tg.r * 0.55;   // a droplet only shrinks once it's inside
+        if (sunk) b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.9 : 0.22)) - u * (b.p ? 0.004 : 0.002) * dt);
         // when it's nearly gone, the absorbing blob remembers the join as a lasting stretch along that direction
         if (!b.p && b.r < 0.6 && !tg.dying) {
-          const ol = Math.hypot(b.off[0], b.off[1]) || 1, amt = 0.75 * Math.sqrt((b.r0 || 10) / Math.max(tg.tr, 1));
-          tg.el = { x: b.off[0] / ol, y: b.off[1] / ol, a: Math.min(0.6, (tg.el ? tg.el.a : 0) + amt) };
+          const ol = Math.hypot(b.off[0], b.off[1]) || 1, amt = 0.5 * Math.sqrt((b.r0 || 10) / Math.max(tg.tr, 1));
+          tg.el = { x: b.off[0] / ol, y: b.off[1] / ol, a: Math.min(0.35, (tg.el ? tg.el.a : 0) + amt) };
         }
         if (!tg.dying) {
           const moved = Math.max(0, before - b.r * b.r), share = moved / Math.max(1, tg.tr * tg.tr + moved);
@@ -723,7 +724,7 @@ function freeSpot(r) {   // a place in the tank not on top of another blob
 function applyAmountNow() {
   const n = targetCount(), live = blobs.filter(b => !b.p && !b.dying).sort((a, b) => a.tr - b.tr);
   while (live.length > n) { const b = live.shift(); b.dying = b; b.fastMelt = true; }
-  while (live.length < n && room(1)) {
+  while (live.length < n && room(3)) {
     const r = randR(), [x, y] = freeSpot(r), b = mk(x, y, 0.5, Math.random());
     b.tr = r; b.fast = 1; b.noMerge = 3; blobs.push(b); live.push(b);
   }
@@ -903,7 +904,9 @@ function render() {
     let hv = Math.min(b.heat, 0.999);
     if (b.dying && b.dying !== b) {
       if (b.r0 === undefined) b.r0 = Math.max(b.r, 0.01);
-      hv += 2 * Math.round(63 * (1 - clamp(b.r / b.r0, 0, 1)));
+      // fades out of the visible surface as it shrinks AND as it sinks inside, so it never shows as a lump within
+      const depth = b.off ? clamp(Math.hypot(b.off[0], b.off[1]) / Math.max(b.dying.r * 0.7, 1), 0, 1) : 1;
+      hv += 2 * Math.round(63 * (1 - clamp(b.r / b.r0, 0, 1) * depth));
     }
     if (b.p) {
       if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
@@ -912,10 +915,10 @@ function render() {
     const sp = Math.hypot(b.vx, b.vy), stv = Math.min(0.35, sp / (60 * g) * 0.18);
     let sx = (sp > 0.1 ? b.vx / sp : 0) * stv, sy = (sp > 0.1 ? b.vy / sp : 1) * stv;
     if (b.el) { sx += b.el.x * b.el.a; sy += b.el.y * b.el.a; }
-    const st = Math.min(0.6, Math.hypot(sx, sy)), ux = st > 0.001 ? sx / st : 0, uy = st > 0.001 ? sy / st : 1;
+    const st = Math.min(0.42, Math.hypot(sx, sy)), ux = st > 0.001 ? sx / st : 0, uy = st > 0.001 ? sy / st : 1;
     for (let i = 0; i < 3 && n < MAX; i++) {
       const s = b.seed, ang = s + i * 2.094 + 0.6 * Math.sin(t * 0.045 + s * 0.7 + i);
-      const dist = b.r * (0.24 + 0.16 * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
+      const dist = b.r * (0.21 + 0.12 * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
       let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
       const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
       ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
@@ -1224,7 +1227,7 @@ function tap(x, y) {
   }
   const k = hit.tr > u * avgR() * 1.15 ? 3 : 2, cr = hit.tr / Math.sqrt(k);
   // make room by dropping a few particles if we're at the renderer's limit
-  if (cr < u * RANGE()[0] * 0.55 || !room(k - 1)) {
+  if (cr < u * RANGE()[0] * 0.55 || !room(3 * (k - 1))) {
     hit.vx += (Math.random() - 0.5) * 60 * g; hit.vy -= 30 * g;
     audio.bloop(0.2); return;
   }
@@ -1252,10 +1255,9 @@ canvas.addEventListener("pointerdown", e => {
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   const now = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
-  // a still press splits/pops quickly; if the finger starts moving first, it's a stir instead
+  // instant feedback on press; the split itself happens on release if the finger didn't move (so drags never split)
   if (pointers.size === 1) {
     const id = e.pointerId, p = pointers.get(id);
-    p.timer = setTimeout(() => { const q = pointers.get(id); if (q && !q.moved && !q.multi && pointers.size === 1) q.acted = pressAction(q.x, q.y); }, 50);
     pressDent(e.clientX, e.clientY);
   }
   if (pointers.size === 2) {
@@ -1269,7 +1271,7 @@ canvas.addEventListener("pointermove", e => {
   const now = performance.now(), dtp = Math.max(0.008, (now - p.tp) / 1000);
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.dist += Math.hypot(dx, dy);
-  if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 6) p.moved = true;
+  if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 8) p.moved = true;
   p.x = e.clientX; p.y = e.clientY; p.tp = now;
   if (pointers.size === 1) {
     stir(p.x, p.y, dx / dtp, dy / dtp, dtp);
@@ -1283,7 +1285,7 @@ canvas.addEventListener("pointermove", e => {
 function endPointer(e) {
   const p = pointers.get(e.pointerId); if (!p) return;
   clearTimeout(p.timer);
-  if (e.type === "pointerup" && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 350) { if (!pressAction(p.x, p.y)) tap(p.x, p.y); }
+  if (e.type === "pointerup" && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 450) { if (!pressAction(p.x, p.y)) tap(p.x, p.y); }
   pointers.delete(e.pointerId);
   if (pointers.size < 2) swipe = null;
 }
@@ -1297,7 +1299,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.4 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.5 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
