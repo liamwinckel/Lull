@@ -40,9 +40,10 @@
     display:flex;gap:4px;padding:6px;border-radius:32px;background:rgba(16,12,14,.5);
     backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);transition:opacity .9s ease}
   #controls.hidden{opacity:0;pointer-events:none}
-  .ctl{width:48px;height:48px;border-radius:50%;border:none;background:transparent;display:grid;place-items:center;padding:0;transition:background .25s}
+  .ctl{width:70px;height:52px;border-radius:26px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;transition:background .25s;color:#fff}
+  .ctl span{font-size:10.5px;letter-spacing:.02em;opacity:.85}
   .ctl.on{background:rgba(255,255,255,.18)}
-  .ctl svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
+  .ctl svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
 
   /* card: one small popover above the dock for the chosen group */
   #sheet{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);width:min(calc(100% - 32px),420px);box-sizing:border-box;
@@ -122,17 +123,10 @@
 <div id="toast"></div>
 
 <div id="controls" class="hidden" role="toolbar" aria-label="Lull controls">
-  <button class="ctl" data-card="look" aria-label="Colours and look">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1.3"/><circle cx="12.5" cy="7.5" r="1.3"/><circle cx="15.8" cy="11" r="1.3"/><path d="M12 21c-1.5 0-2-1-2-2s1-2 2.5-2"/></svg></button>
-  <button class="ctl" data-card="lava" aria-label="Lava, merging and stirring">
-    <svg viewBox="0 0 24 24"><circle cx="9" cy="14.5" r="5"/><circle cx="16.5" cy="7" r="3"/></svg></button>
-  <button class="ctl" data-card="view" aria-label="Full screen or lamp">
-    <svg viewBox="0 0 24 24"><path d="M9.5 2h5l1.2 5H8.3z"/><path d="M8.3 7C7 11.5 7 15.5 8 19h8c1-3.5 1-7.5-.3-12"/><path d="M7 19h10l1.2 3H5.8z"/></svg></button>
-  <button class="ctl" data-card="calm" aria-label="Breathing">
-    <svg viewBox="0 0 24 24"><path d="M3 12c2.2-4.5 4.4-4.5 6.6 0s4.4 4.5 6.6 0 3.3-3 4.8-1.5"/></svg></button>
-  <button class="ctl" data-card="sound" id="btnSound" aria-label="Sound"></button>
-  <button class="ctl" data-card="presets" aria-label="Presets">
-    <svg viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg></button>
+  <button class="ctl" data-card="look"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/></svg><span>Colour</span></button>
+  <button class="ctl" data-card="lava"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="14.5" r="5"/><circle cx="16.5" cy="7" r="3"/></svg><span>Lava</span></button>
+  <button class="ctl" data-card="calm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12c2.2-4.5 4.4-4.5 6.6 0s4.4 4.5 6.6 0 3.3-3 4.8-1.5"/></svg><span>Calm</span></button>
+  <button class="ctl" data-card="presets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg><span>Presets</span></button>
 </div>
 
 <div id="sheet" aria-hidden="true">
@@ -156,6 +150,10 @@
 
   <section class="card" data-card="lava">
     <div class="chead"><span>Lava</span><span>drag to stir · tap a blob to split</span></div>
+    <div class="seg two" id="viewSeg" style="margin-bottom:4px">
+      <button data-v="full">Full screen</button>
+      <button data-v="lamp">Lamp</button>
+    </div>
     <div class="row"><span>Amount</span><input type="range" id="amt" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Merging</span><input type="range" id="absorb" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Stirring</span><input type="range" id="stirk" min="0" max="1" step="0.01"></div>
@@ -163,22 +161,11 @@
     <div class="row"><span>Particles</span><input type="range" id="part" min="0" max="1" step="0.01"></div>
   </section>
 
-  <section class="card" data-card="view">
-    <div class="chead"><span>View</span></div>
-    <div class="seg two" id="viewSeg">
-      <button data-v="full">Full screen</button>
-      <button data-v="lamp">Lamp</button>
-    </div>
-  </section>
-
   <section class="card" data-card="calm">
     <div class="chead"><span>Breathing</span></div>
     <div class="seg" id="breathSeg"></div>
     <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
-  </section>
-
-  <section class="card" data-card="sound">
-    <div class="chead"><span>Sound</span></div>
+    <div class="chead" style="margin-top:14px"><span>Sound</span></div>
     <div class="row"><span>Ambient</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
     <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
     <div class="hint" id="ver" style="margin:10px 0 0;font-size:10px;opacity:.3"></div>
@@ -487,18 +474,21 @@ let lastSplash = 0;
 // with a soft, slightly springy recovery. How far it squashes depends on how hard it hit.
 function squashKick(b, nx, ny, speed) {
   if (speed < 8 * g) return;
-  b.snx = nx; b.sny = ny;
-  b.sqv = (b.sqv || 0) + Math.min(2, speed / (110 * g));
+  const k = Math.min(1.4, speed / (130 * g));
+  b.qvx = (b.qvx || 0) + nx * k; b.qvy = (b.qvy || 0) + ny * k;
 }
+// The squash is a smoothed vector (direction x amount), so it blends gently between walls and never flips.
 function squashStep(b, dt, bs, cx) {
   const R = b.r * bs, hw = halfWidthAt(b.y);
-  const gaps = [[(b.x - (cx - hw)) / R, -1, 0], [((cx + hw) - b.x) / R, 1, 0], [(b.y - tank.y0) / R, 0, -1], [(tank.y0 + tank.h - b.y) / R, 0, 1]];
-  let gmin = gaps[0]; for (const gp of gaps) if (gp[0] < gmin[0]) gmin = gp;
-  const target = clamp((1.1 - gmin[0]) * 1.8, 0, 0.42);
-  if (target > 0.01) { b.snx = gmin[1]; b.sny = gmin[2]; }
-  b.sq = b.sq || 0; b.sqv = b.sqv || 0;
-  b.sqv += (30 * (target - b.sq) - 6 * b.sqv) * dt;
-  b.sq = clamp(b.sq + b.sqv * dt, -0.18, 0.5);
+  const walls = [[(b.x - (cx - hw)) / R, -1, 0], [((cx + hw) - b.x) / R, 1, 0], [(b.y - tank.y0) / R, 0, -1], [(tank.y0 + tank.h - b.y) / R, 0, 1]];
+  let tx = 0, ty = 0;
+  for (const [gp, nx, ny] of walls) { const a = clamp((1.1 - gp) * 1.4, 0, 0.32); tx += nx * a; ty += ny * a; }
+  const tl = Math.hypot(tx, ty); if (tl > 0.32) { tx *= 0.32 / tl; ty *= 0.32 / tl; }
+  b.qx = b.qx || 0; b.qy = b.qy || 0; b.qvx = b.qvx || 0; b.qvy = b.qvy || 0;
+  // critically damped: eases in and out with no overshoot or snap
+  b.qvx += (28 * (tx - b.qx) - 10.6 * b.qvx) * dt; b.qvy += (28 * (ty - b.qy) - 10.6 * b.qvy) * dt;
+  b.qx += b.qvx * dt; b.qy += b.qvy * dt;
+  const ql = Math.hypot(b.qx, b.qy); if (ql > 0.4) { b.qx *= 0.4 / ql; b.qy *= 0.4 / ql; }
 }
 function impact(b, nx, ny, speed) {
   if (speed < 240 * g || t - lastSplash < 4 || t - (b.lastSplash || -99) < 8) return;
@@ -968,12 +958,12 @@ function render() {
       const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
       ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
       let lr = b.r * 0.74 * (1 + 0.08 * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
-      const sq = b.sq || 0;
-      if (Math.abs(sq) > 0.005 && b.snx !== undefined) {
-        const nx = b.snx, ny = b.sny, tx = -ny, ty = nx, sp2 = Math.max(sq, 0);
+      const sq = Math.hypot(b.qx || 0, b.qy || 0);
+      if (sq > 0.004) {
+        const nx = b.qx / sq, ny = b.qy / sq, tx = -ny, ty = nx, sp2 = sq;
         const on = ox * nx + oy * ny, ot = ox * tx + oy * ty;
         const on2 = on * (1 - sq) + b.r * 0.24 * sp2;                       // pressed toward the wall
-        const ot2 = ot * (1 + 0.6 * sq) + (i - 1) * b.r * 0.62 * sp2;       // and spread out along it
+        const ot2 = ot * (1 + 0.9 * sq);                                      // and spread out along it
         ox = on2 * nx + ot2 * tx; oy = on2 * ny + ot2 * ty;
         lr *= 1 - 0.28 * sp2;
       }
@@ -1152,7 +1142,6 @@ function syncUI() {
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
   $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
   $("#amt").value = amount; $("#part").value = particles; $("#light").value = light; $("#shadow").value = shadow;
-  $("#btnSound").innerHTML = soundOn ? ICON_ON : ICON_OFF;
   $("#swSound").classList.toggle("on", soundOn);
   $("#swCue").classList.toggle("on", cueOn);
   $("#vol").value = volume;
@@ -1306,7 +1295,7 @@ function pressDent(x, y) {
   for (const b of blobs) {
     if (b.dying || b.p) continue;
     const dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy);
-    if (d < b.r * 1.15) { b.snx = d > 1 ? -dx / d : 0; b.sny = d > 1 ? -dy / d : -1; b.sqv = (b.sqv || 0) + 1.2; break; }
+    if (d < b.r * 1.15) { const nx = d > 1 ? -dx / d : 0, ny = d > 1 ? -dy / d : -1; b.qvx = (b.qvx || 0) + nx * 0.8; b.qvy = (b.qvy || 0) + ny * 0.8; break; }
   }
 }
 // Pressing on a blob (or a bubble) acts immediately. Returns true if it did something.
@@ -1343,7 +1332,7 @@ function tap(x, y) {
     c.tr = cr; c.noMerge = (6 + Math.random() * 4) * (1 - 0.85 * absorb);
     c.seed = hit.seed; c.seedT = hit.seed + (i - (k - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.4;   // starts as the original's shape, drifts gently to its own
     c.r0s = startR; c.tr = startR; c.trEnd = cr;
-    c.sq = hit.sq || 0; c.sqv = hit.sqv || 0; c.snx = hit.snx; c.sny = hit.sny;
+    c.qx = hit.qx || 0; c.qy = hit.qy || 0; c.qvx = hit.qvx || 0; c.qvy = hit.qvy || 0;
     c.vx = hit.vx; c.vy = hit.vy;
     const a1 = a0 + (i / k) * Math.PI * 2; c.x += Math.cos(a1) * hit.r * 0.2; c.y += Math.sin(a1) * hit.r * 0.2;
     c.vx += Math.cos(a1) * 70 * g; c.vy += Math.sin(a1) * 70 * g;
@@ -1402,7 +1391,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v11 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v11.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
