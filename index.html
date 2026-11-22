@@ -238,7 +238,7 @@ void main(){
   for(int i=0;i<${MAX};i++){ if(i>=uN) break; vec4 b=uB[i]; vec2 d=p-b.xy;
     float dd=dot(d,d), R2=b.z*b.z*3.61;
     float k=max(0.,1.-dd/R2); float v=k*k*k*2.646;
-    float mk=floor(b.w/2.), hb=b.w-mk*2., gwt=1.-mk/15.;   // melting wax fades out of the surface as it melts in
+    float mk=floor(b.w/2.), hb=b.w-mk*2., gwt=1.-mk/63.;   // melting wax fades out of the surface as it melts in
     f+=v; h+=v*hb; rw+=v*b.z*gwt; grad+=d*(-2.646*6.*k*k/R2)*gwt;
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb; float zb=z2*3.2; gg+=d*(-2.*zb/((dd+zb)*(dd+zb)))*gwt*b.z;
     vec2 ds=p-(b.xy+vec2(0.1,-0.24)*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
@@ -533,12 +533,12 @@ function step1(dt) {
       const tg = b.dying, before = b.r * b.r;
       if (tg !== b) {
         // melt: drift along with (and slowly into) the blob absorbing it; only shrinks once inside it
-        b.mt = (b.mt || 0) + dt; const ease = Math.min(1, b.mt / 1.5);   // ramps in over ~1.5s, no snap
+        b.mt = (b.mt || 0) + dt; const ease = Math.min(1, 0.25 + b.mt / 2);   // carries on smoothly from how it was already moving
         b.vx += (tg.vx - b.vx) * relax(1.2 * ease, dt); b.vy += (tg.vy - b.vy) * relax(1.2 * ease, dt);
         b.x += b.vx * dt; b.y += b.vy * dt;
         const k = relax((b.p ? 1.0 : 0.55) * ease, dt); b.x += (tg.x - b.x) * k; b.y += (tg.y - b.y) * k;
         const inside = Math.hypot(b.x - tg.x, b.y - tg.y) < tg.r * 0.9;
-        if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.75 * dt) - u * 0.004 * dt);
+        if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.6 * dt * ease) - u * 0.003 * dt * ease);
         if (!tg.dying && (!b.p || b.fromBig)) tg.tr = Math.sqrt(tg.tr * tg.tr + (before - b.r * b.r));
       } else if (b.fastMelt) {
         // removed by the lava slider: melts away on the spot, quickly
@@ -553,6 +553,11 @@ function step1(dt) {
     }
     b.r += (b.tr - b.r) * Math.min(1, dt * (b.fast > 0 ? 6 : 1.2)); if (b.fast > 0) b.fast -= dt;
     if (b.push) { const w = Math.sin(Math.min(1, b.push.t / 0.6) * Math.PI) * dt / 0.38; b.vx += b.push.ax * w; b.vy += b.push.ay * w; b.push.t += dt; if (b.push.t > 0.6) b.push = null; }
+    if (b.trEnd !== undefined) {   // a split piece eases to its own size as it moves apart, keeping the total look steady
+      b.splitT = (b.splitT || 0) + dt; const e = Math.min(1, b.splitT / 1.1), sm = e * e * (3 - 2 * e);
+      b.tr = b.r0s + (b.trEnd - b.r0s) * sm; b.r = b.tr;
+      if (e >= 1) { delete b.trEnd; delete b.r0s; }
+    }
     if (b.seedT !== undefined) { b.seed += (b.seedT - b.seed) * relax(0.35, dt); if (Math.abs(b.seedT - b.seed) < 0.01) { b.seed = b.seedT; delete b.seedT; } }
     b.noMerge = Math.max(0, b.noMerge - dt);
     if (b.p) b.age += dt;
@@ -876,7 +881,7 @@ function render() {
     let hv = Math.min(b.heat, 0.999);
     if (b.dying && b.dying !== b) {
       if (b.r0 === undefined) b.r0 = Math.max(b.r, 0.01);
-      hv += 2 * Math.round(15 * (1 - clamp(b.r / b.r0, 0, 1)));
+      hv += 2 * Math.round(63 * (1 - clamp(b.r / b.r0, 0, 1)));
     }
     if (b.p) {
       if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
@@ -1190,10 +1195,11 @@ function tap(x, y) {
     const a = a0 + (i / k) * Math.PI * 2;
     const c = mk(hit.x, hit.y, startR, hit.heat);
     c.tr = cr; c.noMerge = 6 + Math.random() * 4;
-    c.seedT = c.seed; c.seed = hit.seed;             // same shape as the original at first, then becomes its own
+    c.seed = hit.seed; c.seedT = hit.seed + (i - (k - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.4;   // starts as the original's shape, drifts gently to its own
+    c.r0s = startR; c.tr = startR; c.trEnd = cr;
     c.sq = hit.sq || 0; c.sqv = hit.sqv || 0; c.snx = hit.snx; c.sny = hit.sny;
     c.vx = hit.vx; c.vy = hit.vy;
-    c.push = { ax: Math.cos(a) * (55 + Math.random() * 25) * g, ay: Math.sin(a) * (55 + Math.random() * 25) * g, t: 0 };
+    c.push = { ax: Math.cos(a) * (150 + Math.random() * 30) * g, ay: Math.sin(a) * (150 + Math.random() * 30) * g, t: 0 };
     blobs.push(c);
   }
   audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
@@ -1242,7 +1248,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
