@@ -514,16 +514,16 @@ function step1(dt) {
   if ((amtTimer -= dt) <= 0) {
     const At = targetArea(), rmin = u * RANGE()[0];
     amtTimer = 0.8;
-    if (area < At * 0.9 && room(1)) {
+    if (area < At * 0.75 && room(1)) {
       const r = Math.min(randR(), Math.sqrt(At - area));
       if (r >= rmin * 0.7) {
         const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h, 0.5, 0.95);
         b.tr = r; b.noMerge = 4; blobs.push(b); alive++;
       }
-    } else if (area > At * 1.1 && alive > 1) {
+    } else if (area > At * 1.3 && alive > 1) {
       let sm = null;
       for (const b of blobs) if (!b.dying && !b.p && (!sm || b.tr < sm.tr)) sm = b;
-      sm.dying = sm; sm.heat = 0; alive--;
+      sm.dying = sm; alive--;
     }
   }
 
@@ -1224,7 +1224,11 @@ canvas.addEventListener("pointerdown", e => {
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   const now = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
-  if (pointers.size === 1) pointers.get(e.pointerId).acted = pressAction(e.clientX, e.clientY);   // instant split / pop on press
+  // a still press splits/pops quickly; if the finger starts moving first, it's a stir instead
+  if (pointers.size === 1) {
+    const id = e.pointerId, p = pointers.get(id);
+    p.timer = setTimeout(() => { const q = pointers.get(id); if (q && !q.moved && !q.multi && pointers.size === 1) q.acted = pressAction(q.x, q.y); }, 100);
+  }
   if (pointers.size === 2) {
     for (const p of pointers.values()) p.multi = true;
     const ps = [...pointers.values()];
@@ -1236,7 +1240,7 @@ canvas.addEventListener("pointermove", e => {
   const now = performance.now(), dtp = Math.max(0.008, (now - p.tp) / 1000);
   const dx = e.clientX - p.x, dy = e.clientY - p.y;
   p.dist += Math.hypot(dx, dy);
-  if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 10) p.moved = true;
+  if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 6) p.moved = true;
   p.x = e.clientX; p.y = e.clientY; p.tp = now;
   if (pointers.size === 1) {
     stir(p.x, p.y, dx / dtp, dy / dtp, dtp);
@@ -1249,7 +1253,8 @@ canvas.addEventListener("pointermove", e => {
 });
 function endPointer(e) {
   const p = pointers.get(e.pointerId); if (!p) return;
-  if (e.type === "pointerup" && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 350) tap(p.x, p.y);
+  clearTimeout(p.timer);
+  if (e.type === "pointerup" && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 350) { if (!pressAction(p.x, p.y)) tap(p.x, p.y); }
   pointers.delete(e.pointerId);
   if (pointers.size < 2) swipe = null;
 }
@@ -1263,7 +1268,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.2 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
