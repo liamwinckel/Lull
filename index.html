@@ -452,7 +452,7 @@ let lastSplash = 0;
 function squashKick(b, nx, ny, speed) {
   if (speed < 8 * g) return;
   b.snx = nx; b.sny = ny;
-  b.sqv = (b.sqv || 0) + Math.min(3.2, speed / (75 * g));
+  b.sqv = (b.sqv || 0) + Math.min(2, speed / (110 * g));
 }
 function squashStep(b, dt, bs, cx) {
   const R = b.r * bs, hw = halfWidthAt(b.y);
@@ -556,7 +556,7 @@ function step1(dt) {
         // when it's nearly gone, the absorbing blob remembers the join as a lasting stretch along that direction
         if (!b.p && b.r < 0.6 && !tg.dying) {
           const ol = Math.hypot(b.off[0], b.off[1]) || 1, amt = 0.5 * Math.sqrt((b.r0 || 10) / Math.max(tg.tr, 1));
-          tg.el = { x: b.off[0] / ol, y: b.off[1] / ol, a: Math.min(0.35, (tg.el ? tg.el.a : 0) + amt) };
+          tg.el = { x: b.off[0] / ol, y: b.off[1] / ol, a: tg.el ? tg.el.a : 0, t: Math.min(0.3, (tg.el ? tg.el.t || tg.el.a : 0) + amt) };
         }
         if (!tg.dying) {
           const moved = Math.max(0, before - b.r * b.r), share = moved / Math.max(1, tg.tr * tg.tr + moved);
@@ -587,7 +587,11 @@ function step1(dt) {
     if (b.seedT !== undefined) { b.seed += (b.seedT - b.seed) * relax(0.35, dt); if (Math.abs(b.seedT - b.seed) < 0.01) { b.seed = b.seedT; delete b.seedT; } }
     b.noMerge = Math.max(0, b.noMerge - dt);
     if (b.p) b.age += dt;
-    if (b.el) { b.el.a *= Math.exp(-dt / 9); if (b.el.a < 0.01) b.el = null; }
+    if (b.el) {   // eases toward its target stretch, then relaxes away slowly
+      if (b.el.t !== undefined) { b.el.a += (b.el.t - b.el.a) * relax(0.8, dt); b.el.t *= Math.exp(-dt / 9); }
+      else b.el.a *= Math.exp(-dt / 9);
+      if (b.el.a < 0.005 && (b.el.t || 0) < 0.005) b.el = null;
+    }
 
     // the classic lava-lamp cycle: heat up at the bottom, rise, cool at the top, sink
     const yn = (b.y - tank.y0) / tank.h, rate = clamp((u * avgR()) / b.r, 0.5, 1.6);
@@ -620,11 +624,14 @@ function step1(dt) {
     if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
     b.x += b.vx * dt; b.y += b.vy * dt;
 
-    const hr = b.r * bs * 0.95, hl = Math.max(0, halfWidthAt(b.y) - hr);
-    if (b.x < cx - hl) { b.x = cx - hl; b.vx = Math.abs(b.vx) * 0.3; }
-    if (b.x > cx + hl) { b.x = cx + hl; b.vx = -Math.abs(b.vx) * 0.3; }
-    if (b.y < tank.y0 + hr) { b.y = tank.y0 + hr; b.vy = Math.abs(b.vy) * 0.3; }
-    if (b.y > tank.y0 + tank.h - hr) { b.y = tank.y0 + tank.h - hr; b.vy = -Math.abs(b.vy) * 0.3; }
+    // edge limit eases the wax back in (no snapping); a hard stop only far out, as a last resort
+    const hr = b.r * bs * 0.95, hl = Math.max(0, halfWidthAt(b.y) - hr), ek = relax(6, dt);
+    if (b.x < cx - hl) { b.x += (cx - hl - b.x) * ek; if (b.vx < 0) b.vx *= 1 - ek; }
+    if (b.x > cx + hl) { b.x += (cx + hl - b.x) * ek; if (b.vx > 0) b.vx *= 1 - ek; }
+    if (b.y < tank.y0 + hr) { b.y += (tank.y0 + hr - b.y) * ek; if (b.vy < 0) b.vy *= 1 - ek; }
+    if (b.y > tank.y0 + tank.h - hr) { b.y += (tank.y0 + tank.h - hr - b.y) * ek; if (b.vy > 0) b.vy *= 1 - ek; }
+    const hh = b.r * bs * 0.6, hl2 = Math.max(0, halfWidthAt(b.y) - hh);
+    b.x = clamp(b.x, cx - hl2, cx + hl2); b.y = clamp(b.y, tank.y0 + hh, tank.y0 + tank.h - hh);
     if (!b.p) squashStep(b, dt, bs, cx);
   }
 
@@ -662,7 +669,7 @@ function step1(dt) {
             const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
             // the more eager the setting, the more touching wax draws together
             const pull = (a.r + c.r) * absorb * relax(1.5, dt) * 0.15, ux = dx / (d || 1), uy = dy / (d || 1);
-            a.x += ux * pull; a.y += uy * pull; c.x -= ux * pull; c.y -= uy * pull;
+            a.vx += ux * pull * 3; a.vy += uy * pull * 3; c.vx -= ux * pull * 3; c.vy -= uy * pull * 3;
             const tt = (touchTime.get(key) || 0) + dt * w; touchTime.set(key, tt);
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
@@ -677,15 +684,12 @@ function step1(dt) {
         // they visibly touch (a neck forms) before pushing; no force at all while apart
         const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * (0.8 + 0.17 * (1 - absorb));
         if (d >= rr) continue;
+        // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
-        const firm = 1 - absorb;   // at 'Easily' nothing bounces
-        const push = (rr - d) * relax(6, dt) * firm;
-        a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
-        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
-        if (vn < 0) {                                     // no bounce: they share the push, like wax in syrup
-          const jimp = -vn / (1 / ma + 1 / mc) * 0.9 * firm;
-          a.vx -= jimp / ma * nx; a.vy -= jimp / ma * ny; c.vx += jimp / mc * nx; c.vy += jimp / mc * ny;
-        }
+        const firm = 1 - absorb, over = (rr - d) / rr;
+        const f = over * over * 900 * g * firm * dt;
+        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
+        a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
       }
     }
   }
@@ -908,6 +912,7 @@ function matchStrip() {
   document.querySelector("meta[name=theme-color]").setAttribute("content", rgb);
 }
 const arr = new Float32Array(MAX * 4), barr = new Float32Array(24 * 4);
+let rdt = 0.016;
 function render() {
   const bs = 1 + 0.14 * breathLvl;
   let n = 0;
@@ -923,9 +928,11 @@ function render() {
       if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
       continue;
     }
-    const sp = Math.hypot(b.vx, b.vy), stv = Math.min(0.35, sp / (60 * g) * 0.18);
-    let sx = (sp > 0.1 ? b.vx / sp : 0) * stv, sy = (sp > 0.1 ? b.vy / sp : 1) * stv;
+    const sp = Math.hypot(b.vx, b.vy), stv = Math.min(0.3, sp / (60 * g) * 0.16);
+    let sx = (sp > 0.1 ? b.vx / sp : 0) * stv, sy = (sp > 0.1 ? b.vy / sp : 0) * stv;
     if (b.el) { sx += b.el.x * b.el.a; sy += b.el.y * b.el.a; }
+    const kk = relax(2.5, rdt); b.ssx = (b.ssx || 0) + (sx - (b.ssx || 0)) * kk; b.ssy = (b.ssy || 0) + (sy - (b.ssy || 0)) * kk;
+    sx = b.ssx; sy = b.ssy;
     const st = Math.min(0.42, Math.hypot(sx, sy)), ux = st > 0.001 ? sx / st : 0, uy = st > 0.001 ? sy / st : 1;
     for (let i = 0; i < 3 && n < MAX; i++) {
       const s = b.seed, ang = s + i * 2.094 + 0.6 * Math.sin(t * 0.045 + s * 0.7 + i);
@@ -972,7 +979,7 @@ function frame(now) {
   breathLvl += (bt - breathLvl) * Math.min(1, dt * 3);
   const k = Math.min(1, dt * 1.6);
   for (const key in tgt) for (let i = 0; i < 3; i++) cur[key][i] += (tgt[key][i] - cur[key][i]) * k;
-  step(dt); render();
+  rdt = dt; step(dt); render();
   if ((audioTick += dt) > 0.15) { audioTick = 0; audio.breath(breathLvl); }
   requestAnimationFrame(frame);
 }
@@ -1214,7 +1221,7 @@ function pressDent(x, y) {
   for (const b of blobs) {
     if (b.dying || b.p) continue;
     const dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy);
-    if (d < b.r * 1.15) { b.snx = d > 1 ? -dx / d : 0; b.sny = d > 1 ? -dy / d : -1; b.sqv = (b.sqv || 0) + 2.2; break; }
+    if (d < b.r * 1.15) { b.snx = d > 1 ? -dx / d : 0; b.sny = d > 1 ? -dy / d : -1; b.sqv = (b.sqv || 0) + 1.2; break; }
   }
 }
 // Pressing on a blob (or a bubble) acts immediately. Returns true if it did something.
@@ -1310,7 +1317,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.7 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
