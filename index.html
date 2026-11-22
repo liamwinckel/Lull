@@ -440,6 +440,23 @@ const contacts = new Set();
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
 let lastSplash = 0;
+// Wall squash: the blob flattens against whatever it's pressed into and widens along it, then eases back
+// with a soft, slightly springy recovery. How far it squashes depends on how hard it hit.
+function squashKick(b, nx, ny, speed) {
+  if (speed < 8 * g) return;
+  b.snx = nx; b.sny = ny;
+  b.sqv = (b.sqv || 0) + Math.min(3.2, speed / (75 * g));
+}
+function squashStep(b, dt, bs, cx) {
+  const R = b.r * bs, hw = halfWidthAt(b.y);
+  const gaps = [[(b.x - (cx - hw)) / R, -1, 0], [((cx + hw) - b.x) / R, 1, 0], [(b.y - tank.y0) / R, 0, -1], [(tank.y0 + tank.h - b.y) / R, 0, 1]];
+  let gmin = gaps[0]; for (const gp of gaps) if (gp[0] < gmin[0]) gmin = gp;
+  const target = clamp((1.1 - gmin[0]) * 1.8, 0, 0.42);
+  if (target > 0.01) { b.snx = gmin[1]; b.sny = gmin[2]; }
+  b.sq = b.sq || 0; b.sqv = b.sqv || 0;
+  b.sqv += (30 * (target - b.sq) - 6 * b.sqv) * dt;
+  b.sq = clamp(b.sq + b.sqv * dt, -0.18, 0.5);
+}
 function impact(b, nx, ny, speed) {
   if (speed < 240 * g || t - lastSplash < 4 || t - (b.lastSplash || -99) < 8) return;
   if (b.tr < u * avgR() * 0.85 || !room(1)) return;
@@ -542,12 +559,12 @@ function step1(dt) {
     b.vy += Math.cos(t * 0.17 + b.seed * 1.3) * 4 * g * dt;
 
     // walls: gently steer back so the wax always stays fully in view
-    const m = b.r * bs * 1.25, hw = halfWidthAt(b.y);
+    const m = b.r * bs * 1.08, hw = halfWidthAt(b.y);   // starts pushing back right as the wax visibly meets the wall
     const L = cx - hw + m, R = cx + hw - m, T = tank.y0 + m, B = tank.y0 + tank.h - m;
     if (!b.p) {   // hard impacts against a wall can splash off a droplet
       const inX = b.x < L ? -1 : b.x > R ? 1 : 0, inY = b.y < T ? -1 : b.y > B ? 1 : 0;
-      if (inX && !b.wallX) impact(b, inX, 0, Math.abs(b.vx) * (Math.sign(b.vx) === inX ? 1 : 0));
-      if (inY && !b.wallY) impact(b, 0, inY, Math.abs(b.vy) * (Math.sign(b.vy) === inY ? 1 : 0));
+      if (inX && !b.wallX) { const vin = Math.abs(b.vx) * (Math.sign(b.vx) === inX ? 1 : 0); impact(b, inX, 0, vin); squashKick(b, inX, 0, vin); }
+      if (inY && !b.wallY) { const vin = Math.abs(b.vy) * (Math.sign(b.vy) === inY ? 1 : 0); impact(b, 0, inY, vin); squashKick(b, 0, inY, vin); }
       b.wallX = inX; b.wallY = inY;
     }
     if (L > R) b.vx += (cx - b.x) * kw * dt;
@@ -560,11 +577,12 @@ function step1(dt) {
     if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
     b.x += b.vx * dt; b.y += b.vy * dt;
 
-    const hr = b.r * bs * 1.02, hl = Math.max(0, halfWidthAt(b.y) - hr);
+    const hr = b.r * bs * 0.95, hl = Math.max(0, halfWidthAt(b.y) - hr);
     if (b.x < cx - hl) { b.x = cx - hl; b.vx = Math.abs(b.vx) * 0.3; }
     if (b.x > cx + hl) { b.x = cx + hl; b.vx = -Math.abs(b.vx) * 0.3; }
     if (b.y < tank.y0 + hr) { b.y = tank.y0 + hr; b.vy = Math.abs(b.vy) * 0.3; }
     if (b.y > tank.y0 + tank.h - hr) { b.y = tank.y0 + tank.h - hr; b.vy = -Math.abs(b.vy) * 0.3; }
+    if (!b.p) squashStep(b, dt, bs, cx);
   }
 
   for (let i = 0; i < blobs.length; i++) {
@@ -590,13 +608,12 @@ function step1(dt) {
         const regrouping = alive > base && (a.tr < smallR || c.tr < smallR) && a.noMerge <= 0 && c.noMerge <= 0;
         if (regrouping) continue;
         if (Math.min(a.tr, c.tr) > Math.max(a.tr, c.tr) * 0.62) continue;   // similar sizes flow through and fuse, like the original
-        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.95, near = rr * 1.5;
-        if (d >= near) continue;
-        const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
-        // pressed together: ease apart firmly; merely close: drift apart slowly so pairs don't travel stuck together
-        const push = d < rr ? (rr - d) * relax(8, dt) + (near - rr) * relax(0.5, dt) * 0.3 : (near - d) * relax(0.5, dt) * 0.3;
-        a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
+        // they visibly touch (a neck forms) before pushing; no force at all while apart
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.82;
         if (d >= rr) continue;
+        const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
+        const push = (rr - d) * relax(6, dt);
+        a.x -= nx * push * wa; a.y -= ny * push * wa; c.x += nx * push * (1 - wa); c.y += ny * push * (1 - wa);
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
         if (vn < 0) {                                     // no bounce: they share the push, like wax in syrup
           const jimp = -vn / (1 / ma + 1 / mc) * 0.9;
@@ -700,14 +717,13 @@ function particleStep(dt, bs) {
   for (const q of blobs) {
     if (!q.p || q.dying) continue;
     for (const b of big) {
-      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 1.05 + q.r * 2.4;
+      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 0.95 + q.r * 0.7;
       if (d >= R) continue;
       if (count > target && q.age > 5) { q.dying = b; count--; break; }   // an extra: melts into the blob it meets
       // otherwise it bumps off the blob's surface and slides around it (it can't pass through)
       const nx = dx / d, ny = dy / d; q.x = b.x + nx * R; q.y = b.y + ny * R;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
       if (vn < 0) { q.vx -= nx * vn * 1.4; q.vy -= ny * vn * 1.4; }
-      q.vx += nx * 10 * g * dt * 20; q.vy += ny * 10 * g * dt * 20;   // and drifts clear instead of resting on it
     }
   }
   // droplets are never created here: they only break off when you stir the wax (see stir())
@@ -837,7 +853,16 @@ function render() {
       let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
       const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
       ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
-      const lr = b.r * 0.74 * (1 + 0.08 * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
+      let lr = b.r * 0.74 * (1 + 0.08 * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
+      const sq = b.sq || 0;
+      if (Math.abs(sq) > 0.005 && b.snx !== undefined) {
+        const nx = b.snx, ny = b.sny, tx = -ny, ty = nx, sp2 = Math.max(sq, 0);
+        const on = ox * nx + oy * ny, ot = ox * tx + oy * ty;
+        const on2 = on * (1 - sq) + b.r * 0.24 * sp2;                       // pressed toward the wall
+        const ot2 = ot * (1 + 0.6 * sq) + (i - 1) * b.r * 0.62 * sp2;       // and spread out along it
+        ox = on2 * nx + ot2 * tx; oy = on2 * ny + ot2 * ty;
+        lr *= 1 - 0.28 * sp2;
+      }
       arr[n * 4] = (b.x + ox) * S; arr[n * 4 + 1] = (H - b.y - oy) * S; arr[n * 4 + 2] = lr * bs * S; arr[n * 4 + 3] = hv; n++;
     }
   }
@@ -1177,7 +1202,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.5 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.6 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
