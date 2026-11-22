@@ -581,20 +581,10 @@ function particleStep(dt, bs) {
       }
     }
   }
+  // droplets are never created here: they only break off when you stir the wax (see stir())
   if ((partTimer -= dt) > 0) return;
-  partTimer = 1.5 + Math.random() * 2;
-  if (count < target && room(1)) {
-    const movers = big.filter(b => Math.hypot(b.vx, b.vy) > 14 * g);
-    if (movers.length) {
-      const b = movers[Math.floor(Math.random() * movers.length)];
-      const a = (b.vy < 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 1.6;  // trails behind its motion
-      // starts just inside the parent's skin and slowly pulls away, so it visibly buds off
-      const q = mkParticle(b.x + Math.cos(a) * b.r * bs * 0.72, b.y + Math.sin(a) * b.r * bs * 0.72, b.heat);
-      q.r = q.tr * 0.6; q.age = 0;
-      q.vx = b.vx * 0.35 + Math.cos(a) * 22 * g; q.vy = b.vy * 0.35 + Math.sin(a) * 22 * g;
-      q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));   // the droplet's wax comes from its parent
-      blobs.push(q);
-    }
+  partTimer = 1;
+  if (false) {
   } else if (count > target && big.length) {
     // too many: one drifts back into its nearest blob (never just vanishes)
     const q = blobs.find(b => b.p && !b.dying);
@@ -941,8 +931,25 @@ $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); a
 /* ---------- touch ---------- */
 const pointers = new Map();
 let swipe = null, lastNoteT = 0;
+function shedFromStir(b, x, y, fvx, fvy, mag) {
+  const now = performance.now(), bs = 1 + 0.14 * breathLvl;
+  if (mag < 160 || now - (b.lastShed || 0) < 260 || !room(1)) return;
+  let count = 0; for (const q of blobs) if (q.p && !q.dying) count++;
+  if (count >= Math.round(particles * 16) || b.tr < u * RANGE()[0] * 0.9) return;
+  if (Math.hypot(b.x - x, b.y - y) > b.r * bs * 1.25) return;
+  b.lastShed = now;
+  // a droplet tears off the far side of the blob, in the direction the finger is moving
+  const dx = fvx / mag, dy = fvy / mag, a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.9;
+  const q = mkParticle(b.x + Math.cos(a) * b.r * bs * 0.8, b.y + Math.sin(a) * b.r * bs * 0.8, b.heat);
+  q.r = q.tr * 0.7; q.age = 0;
+  const sp = Math.min(mag, 1600) * 0.12;
+  q.vx = b.vx * 0.3 + Math.cos(a) * sp; q.vy = b.vy * 0.3 + Math.sin(a) * sp;
+  q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));
+  blobs.push(q);
+}
 function stir(x, y, fvx, fvy, dtp) {
   const mag = Math.hypot(fvx, fvy), cap = 2600;
+  for (const b of [...blobs]) if (!b.p && !b.dying) shedFromStir(b, x, y, fvx, fvy, mag);
   if (mag > cap) { fvx *= cap / mag; fvy *= cap / mag; }
   const bs = 1 + 0.14 * breathLvl;
   for (const b of blobs) {
@@ -1038,7 +1045,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
