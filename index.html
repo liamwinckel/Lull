@@ -556,7 +556,7 @@ function step1(dt) {
         // so the merged shape keeps both parts (a lopsided, two-lobed form) and only gradually rounds off
         b.mt = (b.mt || 0) + dt;
         if (!b.off) b.off = [b.x - tg.x, b.y - tg.y];
-        const settle = Math.exp(-dt * (b.p ? 2.2 : 0.16 + 0.9 * absorb * absorb));
+        const ramp = Math.min(1, (b.mt || 0) / 1.2), settle = Math.exp(-dt * (b.p ? 2.2 : 0.16 + 0.9 * absorb * absorb) * ramp * ramp);
         b.off[0] *= settle; b.off[1] *= settle;
         const e = Math.min(1, b.mt / 0.7), ee = e * e * (3 - 2 * e);           // blend from its own motion into riding along
         let rx = tg.x + b.off[0], ry = tg.y + b.off[1];
@@ -569,7 +569,7 @@ function step1(dt) {
         b.x = fx + (rx - fx) * ee; b.y = fy + (ry - fy) * ee;
         b.vx += (tg.vx - b.vx) * relax(2, dt); b.vy += (tg.vy - b.vy) * relax(2, dt);
         const sunk = !b.p || Math.hypot(b.off[0], b.off[1]) < tg.r * 0.55;   // a droplet only shrinks once it's inside
-        if (sunk) b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.9 : 0.22 + 0.9 * absorb * absorb)) - u * (b.p ? 0.004 : 0.002 + 0.006 * absorb) * dt);
+        if (sunk) b.r = Math.max(0, b.r * Math.exp(-dt * (b.p ? 0.9 : 0.22 + 0.9 * absorb * absorb) * ramp) - u * (b.p ? 0.004 : 0.002 + 0.006 * absorb) * dt * ramp);
         // when it's nearly gone, the absorbing blob remembers the join as a lasting stretch along that direction
         if (!b.p && b.r < 0.6 && !tg.dying) {
           const ol = Math.hypot(b.off[0], b.off[1]) || 1, amt = 0.5 * Math.sqrt((b.r0 || 10) / Math.max(tg.tr, 1));
@@ -684,9 +684,9 @@ function step1(dt) {
               continue;
             }
             const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
-            // the more eager the setting, the more touching wax draws together
-            const pull = (a.r + c.r) * absorb * relax(1.5, dt) * 0.15, ux = dx / (d || 1), uy = dy / (d || 1);
-            a.vx += ux * pull * 3; a.vy += uy * pull * 3; c.vx -= ux * pull * 3; c.vy -= uy * pull * 3;
+            // touching and on the way to merging: they gradually move as one (no tug, no sudden lurch)
+            const ma0 = a.r * a.r, mc0 = c.r * c.r, mvx = (a.vx * ma0 + c.vx * mc0) / (ma0 + mc0), mvy = (a.vy * ma0 + c.vy * mc0) / (ma0 + mc0), kv = relax(1.2, dt);
+            a.vx += (mvx - a.vx) * kv; a.vy += (mvy - a.vy) * kv; c.vx += (mvx - c.vx) * kv; c.vy += (mvy - c.vy) * kv;
             const tt = (touchTime.get(key) || 0) + dt * w; touchTime.set(key, tt);
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
@@ -703,7 +703,8 @@ function step1(dt) {
         if (d >= rr) continue;
         // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
-        const firm = 1 - absorb, over = (rr - d) / rr;
+        const ready = clamp((touchTime.get(a.seed + c.seed) || 0) / Math.max(mergeAfter(), 0.001), 0, 1);
+        const firm = (1 - absorb) * (1 - ready), over = (rr - d) / rr;
         const f = over * over * 900 * g * firm * dt;
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
         a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
@@ -1391,7 +1392,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v11.1 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v11.2 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
