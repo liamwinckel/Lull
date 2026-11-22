@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lull">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Lull — Lava Lamp</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;color:#fff}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;transition:opacity .35s ease}
+  #lamp{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .35s ease}
+  .fade{opacity:0}
+  body.lampview #cue{bottom:calc(env(safe-area-inset-bottom) + 16px)}
+  .seg.two{grid-template-columns:1fr 1fr}
+  .seg.two button{padding:11px 2px;font-size:14px}
+  button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent;cursor:pointer}
+
+  #cue{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 120px);text-align:center;
+    font-weight:300;letter-spacing:.38em;text-transform:uppercase;font-size:14px;opacity:0;transition:opacity 1.2s ease;
+    pointer-events:none;text-shadow:0 0 20px rgba(0,0,0,.6)}
+  #toast{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 26px);text-align:center;font-size:13px;
+    letter-spacing:.28em;text-transform:uppercase;font-weight:400;opacity:0;transition:opacity .6s ease;pointer-events:none;
+    text-shadow:0 0 16px rgba(0,0,0,.6)}
+
+  #controls{position:fixed;right:calc(env(safe-area-inset-right) + 18px);bottom:calc(env(safe-area-inset-bottom) + 18px);
+    display:flex;gap:12px;transition:opacity .9s ease}
+  #controls.hidden{opacity:0;pointer-events:none}
+  .ctl{width:50px;height:50px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(18,18,22,.32);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:grid;place-items:center;padding:0}
+  .ctl svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+
+  #sheet{position:fixed;left:50%;bottom:0;width:min(100%,520px);box-sizing:border-box;max-height:80vh;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;padding:10px 22px calc(env(safe-area-inset-bottom) + 22px);
+    background:rgba(14,14,18,.74);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);
+    border-radius:24px 24px 0 0;border-top:1px solid rgba(255,255,255,.1);
+    transform:translate(-50%,105%);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+  #sheet.open{transform:translate(-50%,0)}
+  .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin:4px auto 14px}
+  h3{font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:20px 0 10px}
+  h3:first-of-type{margin-top:4px}
+  .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .chip{background:none;border:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;opacity:.75}
+  .chip .sw{width:100%;aspect-ratio:1;border-radius:16px;border:2px solid transparent;box-sizing:border-box;position:relative;overflow:hidden}
+  .chip.on{opacity:1}
+  .chip.on .sw{border-color:#fff}
+  .sw i{position:absolute;border-radius:50%;filter:blur(1px)}
+  .custom{display:flex;gap:12px;margin-top:12px}
+  .custom label{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;background:rgba(255,255,255,.06);
+    border-radius:12px;padding:8px 10px}
+  .custom input[type=color]{-webkit-appearance:none;appearance:none;width:28px;height:28px;border:none;border-radius:50%;
+    padding:0;background:none;flex:none}
+  .custom input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+  .custom input[type=color]::-webkit-color-swatch{border:1px solid rgba(255,255,255,.3);border-radius:50%}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(255,255,255,.06);border-radius:14px;padding:4px;gap:4px}
+  .seg button{border:none;background:none;border-radius:10px;padding:9px 2px;font-size:13px;line-height:1.2}
+  .seg button small{display:block;font-size:10px;opacity:.55;margin-top:2px}
+  .seg button.on{background:rgba(255,255,255,.16)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 2px;font-size:15px}
+  .row + .row{border-top:1px solid rgba(255,255,255,.07)}
+  .switch{width:50px;height:30px;border-radius:15px;background:rgba(255,255,255,.18);border:none;position:relative;transition:background .3s;flex:none;padding:0}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .3s}
+  .switch.on{background:#34c759}
+  .switch.on::after{transform:translateX(20px)}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.2);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:none}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:none}
+  .hint{font-size:12px;line-height:1.7;opacity:.5;text-align:center;margin:22px 0 6px}
+  .done{display:block;width:100%;margin-top:12px;padding:14px;border-radius:14px;border:none;background:rgba(255,255,255,.12);font-size:15px}
+
+  #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:rgba(0,0,0,.28);transition:opacity 1.4s ease;text-align:center;padding:24px}
+  #start.gone{opacity:0;pointer-events:none}
+  #start .t{font-size:44px;font-weight:200;letter-spacing:.3em;margin-left:.3em}
+  #start .s{font-size:13px;letter-spacing:.3em;text-transform:uppercase;opacity:.75;animation:pulse 3.2s ease-in-out infinite}
+  #start .h{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 40px);font-size:12px;line-height:1.8;opacity:.5}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:.85}}
+  #nogl{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;opacity:.7}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<svg id="lamp" xmlns="http://www.w3.org/2000/svg"></svg>
+<div id="cue"></div>
+<div id="toast"></div>
+
+<div id="controls" class="hidden">
+  <button class="ctl" id="btnSound" aria-label="Sound"></button>
+  <button class="ctl" id="btnSettings" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+  </button>
+</div>
+
+<div id="sheet" aria-hidden="true">
+  <div class="handle"></div>
+  <h3>View</h3>
+  <div class="seg two" id="viewSeg">
+    <button data-v="full">Full screen</button>
+    <button data-v="lamp">Lamp</button>
+  </div>
+  <div class="row" style="margin-top:6px"><span>Lava</span>
+    <span style="font-size:12px;opacity:.5">Less</span><input type="range" id="amt" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">More</span></div>
+
+  <h3>Colours</h3>
+  <div class="chips" id="chips"></div>
+  <div class="custom">
+    <label><input type="color" id="cHot">Hot wax</label>
+    <label><input type="color" id="cCool">Cool wax</label>
+    <label><input type="color" id="cLiq">Liquid</label>
+  </div>
+
+  <h3>Breathing</h3>
+  <div class="seg" id="breathSeg"></div>
+  <div class="row" style="margin-top:6px"><span>Show breathing cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
+
+  <h3>Sound</h3>
+  <div class="row"><span>Ambient sound</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
+  <div class="row"><span style="opacity:.7">Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
+
+  <div class="hint">Drag to stir · Tap a blob to split it<br>Two-finger swipe to change colours</div>
+  <button class="done" id="btnDone">Done</button>
+</div>
+
+<div id="start">
+  <div class="t">LULL</div>
+  <div class="s">Tap to begin</div>
+  <div class="h">Drag to stir · Tap a blob to split it<br>Headphones recommended</div>
+</div>
+<div id="nogl">This device can’t run the lava renderer (WebGL is unavailable).</div>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("lull." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("lull." + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* ---------- themes ---------- */
+const THEMES = [
+  { id: "classic",  name: "Classic",  hot: "#ffc24a", cool: "#ff4d1a", liqBot: "#4a0a12", liqTop: "#12020a" },
+  { id: "ocean",    name: "Ocean",    hot: "#5ff5d8", cool: "#2a6bff", liqBot: "#06284a", liqTop: "#010714" },
+  { id: "sunset",   name: "Sunset",   hot: "#ffb86b", cool: "#ff3d7f", liqBot: "#3d0d3a", liqTop: "#0d0314" },
+  { id: "midnight", name: "Midnight", hot: "#d6a8ff", cool: "#6a5cff", liqBot: "#17123a", liqTop: "#03020a" },
+  { id: "forest",   name: "Forest",   hot: "#d4f55f", cool: "#14b38a", liqBot: "#0c2e20", liqTop: "#020a06" },
+  { id: "rose",     name: "Rose",     hot: "#ffd1dc", cool: "#ff6f9c", liqBot: "#3a1424", liqTop: "#0c0308" },
+  { id: "mono",     name: "Mono",     hot: "#f2f2f2", cool: "#8a9099", liqBot: "#202226", liqTop: "#050506" }
+];
+const hex2rgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255); };
+const rgb2hex = c => "#" + c.map(v => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, "0")).join("");
+let custom = store.get("custom", { hot: "#ffc24a", cool: "#ff4d1a", liq: "#4a0a12" });
+function themeById(id) {
+  if (id === "custom") {
+    const l = hex2rgb(custom.liq);
+    return { id: "custom", name: "Custom", hot: custom.hot, cool: custom.cool, liqBot: custom.liq, liqTop: rgb2hex(l.map(v => v * 0.25)) };
+  }
+  return THEMES.find(t => t.id === id) || THEMES[0];
+}
+let themeId = store.get("theme", "classic");
+let tgt = {}, cur = {};
+function applyTheme(id, instant) {
+  themeId = id; store.set("theme", id);
+  const t = themeById(id);
+  tgt = { hot: hex2rgb(t.hot), cool: hex2rgb(t.cool), liqBot: hex2rgb(t.liqBot), liqTop: hex2rgb(t.liqTop) };
+  if (instant || !cur.hot) cur = JSON.parse(JSON.stringify(tgt));
+  document.querySelector('meta[name=theme-color]').setAttribute("content", t.liqTop);
+  renderChips(); drawLamp();
+}
+
+/* ---------- settings ---------- */
+const BREATHS = [
+  { id: "off",   name: "Off",   sub: "free",    p: null },
+  { id: "calm",  name: "Calm",  sub: "4 · 4",   p: [4, 0, 4, 0] },
+  { id: "box",   name: "Box",   sub: "4·4·4·4", p: [4, 4, 4, 4] },
+  { id: "relax", name: "Relax", sub: "4 · 7 · 8", p: [4, 7, 8, 0] }
+];
+const PHASE_LABEL = ["Breathe in", "Hold", "Breathe out", "Hold"];
+let breathId = store.get("breath", "off");
+let cueOn = store.get("cue", true);
+let soundOn = store.get("sound", true);
+let volume = store.get("vol", 0.7);
+
+/* ---------- WebGL ---------- */
+const canvas = $("#c");
+const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
+if (!gl) { $("#nogl").style.display = "flex"; $("#start").style.display = "none"; return; }
+const MAX = 24;
+const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
+const FS = `
+precision highp float;
+uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp; uniform vec4 uGlass;
+float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+float prof(float s){ s=clamp(s,0.,1.); return s<0.28 ? 0.8+0.2*sin(s/0.28*1.5708) : 1.-0.45*pow((s-0.28)/0.72,1.3); }
+void main(){
+  vec2 p=gl_FragCoord.xy; float f=0., h=0., gw=0., gh=0.;
+  for(int i=0;i<${MAX};i++){ if(i>=uN) break; vec4 b=uB[i]; vec2 d=p-b.xy;
+    float dd=dot(d,d), R2=b.z*b.z*3.61;
+    float k=max(0.,1.-dd/R2); float v=k*k*k*2.646;
+    f+=v; h+=v*b.w;
+    float w=(b.z*b.z)/(dd+b.z*b.z); gw+=w; gh+=w*b.w; }
+  float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
+  float y=p.y/uRes.y, inside=1., hw=1., dxn=0.;
+  if(uLamp>0.5){
+    y=(p.y-uGlass.y)/(uGlass.z-uGlass.y);
+    hw=uGlass.w*prof(y);
+    float dx=abs(p.x-uGlass.x); dxn=dx/hw;
+    float vy=min(smoothstep(-1.,1.,p.y-uGlass.y),smoothstep(-1.,1.,uGlass.z-p.y));
+    inside=(1.-smoothstep(hw-1.2,hw+0.8,dx))*vy;
+  }
+  vec3 liq=mix(uLiqBot,uLiqTop,smoothstep(0.,1.,y));
+  liq+=uHot*0.16*exp(-y*4.5)*(0.85+0.15*sin(uTime*0.6));
+  vec3 waxc=mix(uCool,uHot,heat);
+  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*pow(clamp(gw,0.,1.),2.2)*(0.28+0.16*uBreath);
+  float core=smoothstep(1.,2.6,f);
+  vec3 wax=mix(waxc*0.88,mix(waxc,vec3(1.),0.28),core);
+  float rim=1.-smoothstep(1.,1.7,f);
+  wax=mix(wax,waxc*1.15+uHot*0.1,rim*0.35);
+  float edge=smoothstep(0.9,1.1,f);
+  vec3 col=mix(liq,wax,edge);
+  if(uLamp>0.5){
+    col*=mix(1.,0.6,smoothstep(0.55,1.,dxn));
+    float side=(p.x-uGlass.x)/hw;
+    float vf=smoothstep(0.,0.1,y)*smoothstep(1.,0.88,y);
+    col+=vec3(exp(-pow((side+0.6)/0.07,2.))*0.11+exp(-pow((side-0.72)/0.035,2.))*0.05)*vf;
+    col+=vec3(0.08)*smoothstep(0.88,1.,dxn);
+    vec3 lampc=mix(uCool,uHot,0.6);
+    float dxo=max(abs(p.x-uGlass.x)-uGlass.w*prof(y),0.);
+    float dyo=max(max(uGlass.y-p.y,p.y-uGlass.z),0.)*0.55;
+    float dist=length(vec2(dxo,dyo));
+    vec3 room=uLiqTop*0.3+vec3(0.008);
+    room+=lampc*exp(-dist/(uGlass.w*1.1))*(0.15+0.06*uBreath);
+    room+=lampc*0.05*exp(-dist/(uGlass.w*4.5));
+    col=mix(room,col,inside);
+  }
+  vec2 q=p/uRes-0.5; col*=1.-0.9*dot(q,q);
+  col+=(hash(p+fract(uTime))-0.5)*(2./255.);
+  gl_FragColor=vec4(col,1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+/* ---------- view, tank & sizing ---------- */
+let view = store.get("view", "full"), viewSel = view;
+let amount = store.get("amount", 0.5);
+let W = 0, H = 0, S = 1, u = 1, g = 1;
+let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
+const prof = s => { s = clamp(s, 0, 1); return s < 0.28 ? 0.8 + 0.2 * Math.sin(s / 0.28 * Math.PI / 2) : 1 - 0.45 * Math.pow((s - 0.28) / 0.72, 1.3); };
+const RANGE = () => view === "lamp" ? [0.1, 0.2] : [0.06, 0.13];       // blob radius range, as a fraction of u
+const avgR = () => { const [a, b] = RANGE(); return (a + b) / 2; };
+function computeTank() {
+  if (view === "lamp") {
+    const L = Math.min(H * 0.8, W * 2.4), top = (H - L) / 2;
+    const gT = top + 0.15 * L, gB = gT + 0.56 * L;
+    const hwMax = Math.min(W * 0.27, 0.56 * L * 0.21);
+    lampGeo = { cx: W / 2, top, L, gT, gB, hwMax, bottom: top + L };
+    tank = { x0: W / 2 - hwMax, y0: gT, w: 2 * hwMax, h: gB - gT };
+  } else {
+    lampGeo = null;
+    tank = { x0: 0, y0: 0, w: W, h: H };
+  }
+  u = Math.min(tank.w, tank.h); g = tank.h / 900;
+}
+function remap(ot, oScale) {
+  const k = (u * avgR()) / oScale;
+  for (const b of blobs) {
+    b.x = tank.x0 + (b.x - ot.x0) / ot.w * tank.w;
+    b.y = tank.y0 + (b.y - ot.y0) / ot.h * tank.h;
+    b.r *= k; b.tr *= k; b.vx *= k; b.vy *= k;
+  }
+}
+function resize() {
+  const ot = { ...tank }, oScale = u * avgR(), had = W > 0;
+  W = innerWidth; H = innerHeight;
+  S = Math.min(window.devicePixelRatio || 1, 2) * 0.72;
+  canvas.width = Math.round(W * S); canvas.height = Math.round(H * S);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  computeTank();
+  if (had) remap(ot, oScale);
+  drawLamp();
+}
+
+/* ---------- blobs & lava amount ---------- */
+let blobs = [];
+const targetCount = () => Math.max(1, Math.round(view === "lamp" ? 1 + amount * 8 : 2 + amount * 11));
+const targetArea = () => { const [a, b] = RANGE(); return targetCount() * u * u * (a * a + a * b + b * b) / 3; };
+function mk(x, y, r, heat) { return { x, y, vx: 0, vy: 0, r, tr: r, heat, seed: Math.random() * 1000, noMerge: 0, dying: null }; }
+const randR = () => { const [a, b] = RANGE(); return u * (a + Math.random() * (b - a)); };
+function seedBlobs() {
+  blobs = [];
+  const n = targetCount();
+  for (let i = 0; i < n; i++) {
+    const r = randR();
+    blobs.push(mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * (tank.w - 2.4 * r), tank.y0 + tank.h * (0.15 + 0.75 * Math.random()), r, Math.random()));
+  }
+}
+// half-width of the space available at a given screen y (lamp glass narrows toward the top)
+function halfWidthAt(y) {
+  if (!lampGeo) return tank.w / 2;
+  return lampGeo.hwMax * prof((tank.y0 + tank.h - y) / tank.h);
+}
+
+/* ---------- breathing ---------- */
+let breathT = 0, breathLvl = 0, breathPhase = -1;
+function breathTarget(dt) {
+  const B = BREATHS.find(b => b.id === breathId);
+  if (!B || !B.p) { breathPhase = -1; return 0; }
+  const p = B.p, total = p[0] + p[1] + p[2] + p[3];
+  breathT = (breathT + dt) % total;
+  let t = breathT, ph = 0;
+  while (t >= p[ph]) { t -= p[ph]; ph++; }
+  if (ph !== breathPhase) { breathPhase = ph; showCue(PHASE_LABEL[ph]); }
+  const k = t / p[ph], ease = 0.5 - 0.5 * Math.cos(Math.PI * k);
+  return ph === 0 ? ease : ph === 1 ? 1 : ph === 2 ? 1 - ease : 0;
+}
+const cueEl = $("#cue");
+function showCue(txt) {
+  if (!cueOn || !started) { cueEl.style.opacity = 0; return; }
+  cueEl.style.opacity = 0;
+  setTimeout(() => { cueEl.textContent = txt; cueEl.style.opacity = 0.85; }, 350);
+}
+
+/* ---------- simulation ---------- */
+let t = 0, amtTimer = 0;
+function step(dt) {
+  const base = targetCount();
+  let alive = 0, area = 0;
+  for (const b of blobs) if (!b.dying) { alive++; area += b.tr * b.tr; }
+
+  // lava amount: melt new wax in at the bottom, or let the smallest blob dissolve away
+  if ((amtTimer -= dt) <= 0) {
+    const At = targetArea(), rmin = u * RANGE()[0];
+    amtTimer = 0.5;
+    if (area < At * 0.92 && alive < MAX) {
+      const r = Math.min(randR(), Math.sqrt(At - area));
+      if (r >= rmin * 0.7) {
+        const b = mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 0.8, tank.y0 + tank.h - r * 1.2, 0.5, 0.95);
+        b.tr = r; b.noMerge = 3; blobs.push(b); alive++; amtTimer = 0.35;
+      }
+    } else if (area > At * 1.08 && alive > 1) {
+      let sm = null;
+      for (const b of blobs) if (!b.dying && (!sm || b.tr < sm.tr)) sm = b;
+      sm.dying = sm; sm.tr = 0; alive--; amtTimer = 0.35;
+    }
+  }
+
+  const bs = 1 + 0.14 * breathLvl, kw = 10;
+  for (const b of blobs) {
+    if (b.dying) {
+      const k = Math.min(1, dt * 3);
+      b.x += (b.dying.x - b.x) * k; b.y += (b.dying.y - b.y) * k;
+      b.r += (0 - b.r) * Math.min(1, dt * 2.5);
+      continue;
+    }
+    b.r += (b.tr - b.r) * Math.min(1, dt * 2);
+    b.noMerge = Math.max(0, b.noMerge - dt);
+    const yn = (b.y - tank.y0) / tank.h, rate = clamp((u * avgR()) / b.r, 0.5, 1.6);
+    if (yn > 0.78) b.heat += (yn - 0.78) * 1.6 * rate * dt;
+    else if (yn < 0.28) b.heat -= (0.28 - yn) * 1.4 * rate * dt;
+    else b.heat -= 0.025 * dt;
+
+    b.vy += -(b.heat - 0.5) * 2 * 30 * g * dt;
+    b.vx += Math.sin(t * 0.23 + b.seed) * 14 * (tank.w / 400) * dt;
+    b.vy += Math.cos(t * 0.17 + b.seed * 1.3) * 4 * g * dt;
+
+    // keep each blob fully inside the screen / glass
+    const m = b.r * bs * 1.25, cx = tank.x0 + tank.w / 2, hw = halfWidthAt(b.y);
+    const L = cx - hw + m, R = cx + hw - m, T = tank.y0 + m, B = tank.y0 + tank.h - m;
+    if (L > R) b.vx += (cx - b.x) * kw * dt;
+    else { if (b.x < L) b.vx += (L - b.x) * kw * dt; if (b.x > R) b.vx -= (b.x - R) * kw * dt; }
+    if (b.y < T) { b.vy += (T - b.y) * kw * dt; b.heat -= 0.2 * dt; }
+    if (b.y > B) { b.vy -= (b.y - B) * kw * dt; b.heat += 0.12 * dt; }
+    b.heat = clamp(b.heat, 0, 1);
+
+    const damp = Math.exp(-0.9 * dt); b.vx *= damp; b.vy *= damp;
+    const sp = Math.hypot(b.vx, b.vy), cap = 700 * g;
+    if (sp > cap) { b.vx *= cap / sp; b.vy *= cap / sp; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+
+    // hard limit so a hard fling can never push wax out of view
+    const hr = b.r * bs * 1.02, hl = Math.max(0, halfWidthAt(b.y) - hr);
+    if (b.x < cx - hl) { b.x = cx - hl; b.vx = Math.abs(b.vx) * 0.3; }
+    if (b.x > cx + hl) { b.x = cx + hl; b.vx = -Math.abs(b.vx) * 0.3; }
+    if (b.y < tank.y0 + hr) { b.y = tank.y0 + hr; b.vy = Math.abs(b.vy) * 0.3; }
+    if (b.y > tank.y0 + tank.h - hr) { b.y = tank.y0 + tank.h - hr; b.vy = -Math.abs(b.vy) * 0.3; }
+  }
+
+  // soft spacing so blobs stay readable instead of stacking into one clump (they still touch & stretch)
+  for (let i = 0; i < blobs.length; i++) {
+    const a = blobs[i]; if (a.dying) continue;
+    for (let j = i + 1; j < blobs.length; j++) {
+      const c = blobs[j]; if (c.dying || c.dying === a) continue;
+      const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * 0.95;
+      if (d < rr && !(alive > base && a.noMerge <= 0 && c.noMerge <= 0)) {
+        const f = (rr - d) * 2.2 * dt, ma = c.r / (a.r + c.r), mc = a.r / (a.r + c.r);
+        a.vx -= dx / d * f * ma * 10; a.vy -= dy / d * f * ma * 10; c.vx += dx / d * f * mc * 10; c.vy += dy / d * f * mc * 10;
+      }
+    }
+  }
+
+  // gentle regrouping: when there are extra (split) blobs, let small ones drift together & merge
+  if (alive > base) {
+    const [ra, rb] = RANGE(), smallR = u * (ra + (rb - ra) * 0.45), maxR = u * rb * 1.45;
+    outer:
+    for (let i = 0; i < blobs.length; i++) {
+      const a = blobs[i]; if (a.dying) continue;
+      for (let j = i + 1; j < blobs.length; j++) {
+        const c = blobs[j]; if (c.dying) continue;
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+        if (!(a.tr < smallR || c.tr < smallR)) continue;
+        if (d < 4 * (a.r + c.r)) {
+          const f = 9 * g * dt; a.vx += dx / d * f; a.vy += dy / d * f; c.vx -= dx / d * f; c.vy -= dy / d * f;
+        }
+        const nr = Math.sqrt(a.tr * a.tr + c.tr * c.tr);
+        if (a.noMerge <= 0 && c.noMerge <= 0 && d < (a.r + c.r) * 0.55 && nr < maxR) {
+          const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
+          big.tr = nr; big.heat = (big.heat + sm.heat) / 2;
+          sm.dying = big; sm.tr = 0;
+          if (--alive <= base) break outer;
+        }
+      }
+    }
+  }
+  blobs = blobs.filter(b => !(b.dying && b.r < 0.6));
+}
+
+/* ---------- lamp body (cap + base) ---------- */
+const svg = $("#lamp");
+function drawLamp() {
+  document.body.classList.toggle("lampview", !!lampGeo);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (!lampGeo) { svg.innerHTML = ""; return; }
+  const { cx, top, L, gT, gB, hwMax, bottom } = lampGeo;
+  const hb = hwMax * prof(0), ht = hwMax * prof(1);
+  const bT = hb * 1.03, bB = hwMax * 1.34, ctT = ht * 0.42, ctB = ht * 1.05;
+  const hot = themeById(themeId).hot, rim = L * 0.016;
+  svg.innerHTML = `
+  <defs>
+    <linearGradient id="metal" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">
+      <stop offset="0" stop-color="#08080a"/><stop offset=".16" stop-color="#2c2c33"/><stop offset=".3" stop-color="#7d7d88"/>
+      <stop offset=".38" stop-color="#3d3d45"/><stop offset=".68" stop-color="#141418"/><stop offset=".86" stop-color="#34343b"/>
+      <stop offset="1" stop-color="#08080a"/></linearGradient>
+    <linearGradient id="rim" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">
+      <stop offset="0" stop-color="#1a1a1e"/><stop offset=".3" stop-color="#b8b8c2"/><stop offset=".45" stop-color="#55555e"/>
+      <stop offset=".8" stop-color="#2a2a30"/><stop offset="1" stop-color="#1a1a1e"/></linearGradient>
+    <linearGradient id="glowB" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="${hot}" stop-opacity=".5"/><stop offset=".55" stop-color="${hot}" stop-opacity="0"/></linearGradient>
+    <linearGradient id="glowC" x1="0" x2="0" y1="1" y2="0">
+      <stop offset="0" stop-color="${hot}" stop-opacity=".35"/><stop offset=".6" stop-color="${hot}" stop-opacity="0"/></linearGradient>
+    <radialGradient id="pool"><stop offset="0" stop-color="${hot}" stop-opacity=".16"/><stop offset="1" stop-color="${hot}" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="${cx}" cy="${bottom}" rx="${bB * 2.4}" ry="${L * 0.05}" fill="url(#pool)"/>
+  <path d="M${cx - bT},${gB} L${cx + bT},${gB} Q${cx + bT * 1.04},${gB + (bottom - gB) * 0.62} ${cx + bB},${bottom - rim} L${cx + bB},${bottom}
+           L${cx - bB},${bottom} L${cx - bB},${bottom - rim} Q${cx - bT * 1.04},${gB + (bottom - gB) * 0.62} ${cx - bT},${gB} Z" fill="url(#metal)"/>
+  <path d="M${cx - bT},${gB} L${cx + bT},${gB} Q${cx + bT * 1.04},${gB + (bottom - gB) * 0.62} ${cx + bB},${bottom - rim} L${cx + bB},${bottom}
+           L${cx - bB},${bottom} L${cx - bB},${bottom - rim} Q${cx - bT * 1.04},${gB + (bottom - gB) * 0.62} ${cx - bT},${gB} Z" fill="url(#glowB)"/>
+  <rect x="${cx - bB * 1.02}" y="${bottom - rim}" width="${bB * 2.04}" height="${rim}" rx="${rim / 2}" fill="url(#rim)"/>
+  <rect x="${cx - bT * 1.08}" y="${gB - 1}" width="${bT * 2.16}" height="${rim * 1.1}" rx="${rim / 2}" fill="url(#rim)"/>
+  <path d="M${cx - ctT},${top + rim * 0.6} Q${cx},${top - rim * 0.5} ${cx + ctT},${top + rim * 0.6} L${cx + ctB},${gT} L${cx - ctB},${gT} Z" fill="url(#metal)"/>
+  <path d="M${cx - ctT},${top + rim * 0.6} Q${cx},${top - rim * 0.5} ${cx + ctT},${top + rim * 0.6} L${cx + ctB},${gT} L${cx - ctB},${gT} Z" fill="url(#glowC)"/>
+  <rect x="${cx - ctB * 1.06}" y="${gT - rim * 0.9}" width="${ctB * 2.12}" height="${rim}" rx="${rim / 2}" fill="url(#rim)"/>`;
+}
+function setView(v) {
+  if (v === viewSel) return;
+  viewSel = v; store.set("view", v);
+  canvas.classList.add("fade"); svg.classList.add("fade");
+  setTimeout(() => {
+    const ot = { ...tank }, oScale = u * avgR();
+    view = v;
+    computeTank(); remap(ot, oScale); drawLamp();
+    canvas.classList.remove("fade"); svg.classList.remove("fade");
+  }, 360);
+  syncUI();
+}
+
+/* ---------- render ---------- */
+const arr = new Float32Array(MAX * 4);
+function render() {
+  const bs = 1 + 0.14 * breathLvl;
+  let n = 0;
+  for (const b of blobs) {
+    if (n >= MAX) break;
+    arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = b.heat; n++;
+  }
+  gl.uniform2f(U.uRes, canvas.width, canvas.height);
+  gl.uniform4fv(U.uB, arr); gl.uniform1i(U.uN, n);
+  gl.uniform3fv(U.uHot, cur.hot); gl.uniform3fv(U.uCool, cur.cool);
+  gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
+  gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
+  gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
+  if (lampGeo) gl.uniform4f(U.uGlass, lampGeo.cx * S, (H - lampGeo.gB) * S, (H - lampGeo.gT) * S, lampGeo.hwMax * S);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+let last = performance.now(), audioTick = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  const bt = breathTarget(dt);
+  breathLvl += (bt - breathLvl) * Math.min(1, dt * 3);
+  const k = Math.min(1, dt * 1.6);
+  for (const key in tgt) for (let i = 0; i < 3; i++) cur[key][i] += (tgt[key][i] - cur[key][i]) * k;
+  step(dt); render();
+  if ((audioTick += dt) > 0.15) { audioTick = 0; audio.breath(breathLvl); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- audio ---------- */
+const audio = (() => {
+  let AC = null, master, dry, fx, ambF, amb;
+  const SCALE = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
+  function init() {
+    if (AC) return;
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    master = AC.createGain(); master.gain.value = 0; master.connect(AC.destination);
+    dry = AC.createGain(); dry.connect(master);
+    const delay = AC.createDelay(1); delay.delayTime.value = 0.37;
+    const fb = AC.createGain(); fb.gain.value = 0.42;
+    const dl = AC.createBiquadFilter(); dl.type = "lowpass"; dl.frequency.value = 1600;
+    fx = AC.createGain(); fx.gain.value = 0.55;
+    fx.connect(delay); delay.connect(dl); dl.connect(fb); fb.connect(delay); dl.connect(master);
+
+    ambF = AC.createBiquadFilter(); ambF.type = "lowpass"; ambF.frequency.value = 340; ambF.Q.value = 0.8;
+    amb = AC.createGain(); amb.gain.value = 0.5; ambF.connect(amb); amb.connect(master);
+    [[55, "sine", 0.45], [82.41, "sine", 0.3], [110.2, "triangle", 0.22], [164.8, "sine", 0.12], [220.4, "sine", 0.05]].forEach(([f, type, v]) => {
+      const o = AC.createOscillator(); o.type = type; o.frequency.value = f;
+      const gg = AC.createGain(); gg.gain.value = v; o.connect(gg); gg.connect(ambF); o.start();
+      const l = AC.createOscillator(); l.frequency.value = 0.04 + Math.random() * 0.09;
+      const lg = AC.createGain(); lg.gain.value = v * 0.5; l.connect(lg); lg.connect(gg.gain); l.start();
+    });
+    const len = AC.sampleRate * 6, nb = AC.createBuffer(1, len, AC.sampleRate), d = nb.getChannelData(0);
+    let lastv = 0; for (let i = 0; i < len; i++) { lastv = (lastv + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = lastv * 3.5; }
+    const drift = d[len - 1] - d[0]; for (let i = 0; i < len; i++) d[i] -= drift * i / len;
+    const ns = AC.createBufferSource(); ns.buffer = nb; ns.loop = true;
+    const nf = AC.createBiquadFilter(); nf.type = "lowpass"; nf.frequency.value = 420;
+    const ng = AC.createGain(); ng.gain.value = 0.35; ns.connect(nf); nf.connect(ng); ng.connect(amb); ns.start();
+    const fl = AC.createOscillator(); fl.frequency.value = 0.035; const flg = AC.createGain(); flg.gain.value = 110;
+    fl.connect(flg); flg.connect(ambF.frequency); fl.start();
+  }
+  function level() {
+    if (!AC) return;
+    master.gain.setTargetAtTime(soundOn ? volume * 0.9 : 0, AC.currentTime, 0.5);
+  }
+  function resume() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
+  function env(o, peak, a, rel, to = dry) {
+    const tt = AC.currentTime, gg = AC.createGain();
+    gg.gain.setValueAtTime(0, tt); gg.gain.linearRampToValueAtTime(peak, tt + a);
+    gg.gain.exponentialRampToValueAtTime(0.0001, tt + a + rel);
+    o.connect(gg); gg.connect(to); gg.connect(fx); o.start(tt); o.stop(tt + a + rel + 0.05);
+  }
+  return {
+    init, level, resume,
+    suspend() { if (AC) AC.suspend().catch(() => {}); },
+    note(yFrac) {
+      if (!AC || !soundOn) return;
+      const idx = clamp(Math.floor((1 - yFrac) * SCALE.length), 0, SCALE.length - 1);
+      const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = SCALE[idx];
+      env(o, 0.07, 0.06, 2.2);
+      const o2 = AC.createOscillator(); o2.type = "sine"; o2.frequency.value = SCALE[idx] * 2.005;
+      env(o2, 0.015, 0.08, 1.4);
+    },
+    bloop(size) {
+      if (!AC || !soundOn) return;
+      [0, 0.08].forEach((delay, i) => {
+        setTimeout(() => {
+          const o = AC.createOscillator(); o.type = "sine";
+          const f0 = (160 + (1 - size) * 260) * (i ? 1.5 : 1), tt = AC.currentTime;
+          o.frequency.setValueAtTime(f0, tt); o.frequency.exponentialRampToValueAtTime(f0 * 2.3, tt + 0.14);
+          env(o, i ? 0.1 : 0.2, 0.012, 0.32);
+        }, delay * 1000);
+      });
+    },
+    breath(lvl) {
+      if (!AC || !ambF) return;
+      ambF.frequency.setTargetAtTime(340 + lvl * 380, AC.currentTime, 0.4);
+      amb.gain.setTargetAtTime(0.5 + lvl * 0.25, AC.currentTime, 0.4);
+    }
+  };
+})();
+
+/* ---------- UI ---------- */
+const controls = $("#controls"), sheet = $("#sheet"), toast = $("#toast");
+let started = false, sheetOpen = false, idleTimer = 0, toastTimer = 0;
+function wake() {
+  if (!started || sheetOpen) return;
+  controls.classList.remove("hidden");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => controls.classList.add("hidden"), 3500);
+}
+function showToast(txt) {
+  toast.textContent = txt; toast.style.opacity = 0.85;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.style.opacity = 0, 1600);
+}
+const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
+const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
+function syncUI() {
+  [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
+  $("#amt").value = amount;
+  $("#btnSound").innerHTML = soundOn ? ICON_ON : ICON_OFF;
+  $("#swSound").classList.toggle("on", soundOn);
+  $("#swCue").classList.toggle("on", cueOn);
+  $("#vol").value = volume;
+  [...$("#breathSeg").children].forEach(b => b.classList.toggle("on", b.dataset.id === breathId));
+  $("#cHot").value = custom.hot; $("#cCool").value = custom.cool; $("#cLiq").value = custom.liq;
+}
+function renderChips() {
+  const box = $("#chips"); box.innerHTML = "";
+  [...THEMES.map(x => x.id), "custom"].forEach(id => {
+    const th = themeById(id);
+    const b = document.createElement("button"); b.className = "chip" + (id === themeId ? " on" : "");
+    b.innerHTML = `<div class="sw" style="background:linear-gradient(to top,${th.liqBot},${th.liqTop})">
+      <i style="width:46%;height:46%;left:14%;top:44%;background:radial-gradient(circle at 40% 35%,${th.hot},${th.cool})"></i>
+      <i style="width:30%;height:30%;left:56%;top:14%;background:radial-gradient(circle at 40% 35%,${th.hot},${th.cool})"></i>
+    </div>${th.name}`;
+    b.onclick = () => { applyTheme(id); };
+    box.appendChild(b);
+  });
+}
+function cycleTheme(dir) {
+  const ids = [...THEMES.map(x => x.id), "custom"];
+  const i = (ids.indexOf(themeId) + dir + ids.length) % ids.length;
+  applyTheme(ids[i]); showToast(themeById(ids[i]).name);
+}
+BREATHS.forEach(B => {
+  const b = document.createElement("button"); b.dataset.id = B.id;
+  b.innerHTML = `${B.name}<small>${B.sub}</small>`;
+  b.onclick = () => {
+    breathId = B.id; store.set("breath", B.id); breathT = 0; breathPhase = -1;
+    if (B.id === "off") cueEl.style.opacity = 0;
+    syncUI();
+  };
+  $("#breathSeg").appendChild(b);
+});
+function openSheet() { sheetOpen = true; sheet.classList.add("open"); controls.classList.add("hidden"); }
+function closeSheet() { sheetOpen = false; sheet.classList.remove("open"); wake(); }
+$("#btnSettings").onclick = e => { e.stopPropagation(); openSheet(); };
+$("#btnDone").onclick = closeSheet;
+function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
+$("#btnSound").onclick = e => { e.stopPropagation(); setSound(!soundOn); showToast(soundOn ? "Sound on" : "Sound off"); wake(); };
+$("#swSound").onclick = () => setSound(!soundOn);
+$("#swCue").onclick = () => {
+  cueOn = !cueOn; store.set("cue", cueOn);
+  if (!cueOn) cueEl.style.opacity = 0; else if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
+  syncUI();
+};
+[...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
+$("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); amtTimer = 0; };
+$("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
+["cHot", "cCool", "cLiq"].forEach(id => {
+  $("#" + id).oninput = e => {
+    const key = id === "cHot" ? "hot" : id === "cCool" ? "cool" : "liq";
+    custom[key] = e.target.value; store.set("custom", custom); applyTheme("custom");
+  };
+});
+
+/* ---------- touch ---------- */
+const pointers = new Map();
+let swipe = null, lastNoteT = 0;
+function stir(x, y, fvx, fvy, dtp) {
+  const mag = Math.hypot(fvx, fvy), cap = 2600;
+  if (mag > cap) { fvx *= cap / mag; fvy *= cap / mag; }
+  const bs = 1 + 0.14 * breathLvl;
+  for (const b of blobs) {
+    if (b.dying) continue;
+    const dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy) || 1, R = Math.min(W, H) * 0.3 + b.r * bs;
+    if (d > R) continue;
+    let w = 1 - d / R; w *= w;
+    const mass = clamp((u * avgR()) / b.r, 0.6, 1.8);
+    b.vx += fvx * w * 0.32 * mass * Math.min(1, dtp * 20);
+    b.vy += fvy * w * 0.32 * mass * Math.min(1, dtp * 20);
+    b.vx += dx / d * w * 1100 * g * dtp * mass;
+    b.vy += dy / d * w * 1100 * g * dtp * mass;
+  }
+}
+function tap(x, y) {
+  const bs = 1 + 0.14 * breathLvl;
+  let hit = null, best = -Infinity;
+  for (const b of blobs) {
+    if (b.dying) continue;
+    const d = Math.hypot(b.x - x, b.y - y), sc = b.r * bs * 1.15 - d;
+    if (sc > 0 && sc > best) { best = sc; hit = b; }
+  }
+  if (!hit) {
+    stir(x, y, 0, 0, 0.12); wake(); return;
+  }
+  const alive = blobs.filter(b => !b.dying).length;
+  const k = hit.tr > u * avgR() * 1.15 ? 3 : 2, cr = hit.tr / Math.sqrt(k);
+  if (cr < u * RANGE()[0] * 0.55 || alive + k - 1 > MAX) {
+    hit.vx += (Math.random() - 0.5) * 80; hit.vy -= 40; audio.bloop(0.2); return;
+  }
+  const a0 = Math.random() * Math.PI * 2;
+  blobs.splice(blobs.indexOf(hit), 1);
+  for (let i = 0; i < k; i++) {
+    const a = a0 + (i / k) * Math.PI * 2;
+    const c = mk(hit.x + Math.cos(a) * hit.r * 0.25, hit.y + Math.sin(a) * hit.r * 0.25, hit.r * 0.75, hit.heat);
+    c.tr = cr; c.noMerge = 6 + Math.random() * 4;
+    const sp = (90 + Math.random() * 50) * g;
+    c.vx = hit.vx + Math.cos(a) * sp; c.vy = hit.vy + Math.sin(a) * sp;
+    blobs.push(c);
+  }
+  audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
+}
+canvas.addEventListener("pointerdown", e => {
+  if (!started) return;
+  if (sheetOpen) { closeSheet(); return; }
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  const now = performance.now();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
+  if (pointers.size === 2) {
+    for (const p of pointers.values()) p.multi = true;
+    const ps = [...pointers.values()];
+    swipe = { cx: (ps[0].x + ps[1].x) / 2, cy: (ps[0].y + ps[1].y) / 2, done: false };
+  }
+});
+canvas.addEventListener("pointermove", e => {
+  const p = pointers.get(e.pointerId); if (!p) return;
+  const now = performance.now(), dtp = Math.max(0.008, (now - p.tp) / 1000);
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.dist += Math.hypot(dx, dy);
+  if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 10) p.moved = true;
+  p.x = e.clientX; p.y = e.clientY; p.tp = now;
+  if (pointers.size === 1) {
+    stir(p.x, p.y, dx / dtp, dy / dtp, dtp);
+    if (p.dist - p.lastNote > 170 && now - lastNoteT > 280) { p.lastNote = p.dist; lastNoteT = now; audio.note(p.y / H); }
+  } else if (pointers.size === 2 && swipe && !swipe.done) {
+    const ps = [...pointers.values()];
+    const cx = (ps[0].x + ps[1].x) / 2, cy = (ps[0].y + ps[1].y) / 2;
+    if (Math.abs(cx - swipe.cx) > 80 && Math.abs(cy - swipe.cy) < 90) { swipe.done = true; cycleTheme(cx < swipe.cx ? 1 : -1); }
+  }
+});
+function endPointer(e) {
+  const p = pointers.get(e.pointerId); if (!p) return;
+  if (e.type === "pointerup" && !p.moved && !p.multi && performance.now() - p.t0 < 350) tap(p.x, p.y);
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) swipe = null;
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+document.addEventListener("touchmove", e => { if (!sheet.contains(e.target)) e.preventDefault(); }, { passive: false });
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("dblclick", e => e.preventDefault());
+
+/* ---------- start / lifecycle ---------- */
+let wakeLock = null;
+async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
+$("#start").addEventListener("click", () => {
+  if (started) return;
+  started = true;
+  $("#start").classList.add("gone");
+  audio.init(); if (soundOn) audio.resume(); audio.level();
+  keepAwake(); wake();
+  if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) audio.suspend();
+  else { last = performance.now(); if (started && soundOn) audio.resume(); keepAwake(); }
+});
+window.addEventListener("resize", resize);
+
+try { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
+
+resize(); seedBlobs(); applyTheme(themeId, true); syncUI();
+requestAnimationFrame(t0 => { last = t0; requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>
