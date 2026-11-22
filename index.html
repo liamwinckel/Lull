@@ -48,6 +48,11 @@
     border-radius:24px 24px 0 0;border-top:1px solid rgba(255,255,255,.1);
     transform:translate(-50%,105%);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
   #sheet.open{transform:translate(-50%,0)}
+  #sheet{transition:transform .5s cubic-bezier(.2,.8,.2,1),background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
+  #sheet > *{transition:opacity .35s}
+  #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-top-color:transparent}
+  #sheet.peek > *:not(.active){opacity:.07}
+  #sheet.peek .row.active{background:rgba(14,14,18,.55);border-radius:14px;padding-left:10px;padding-right:10px}
   .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
   .grab{padding:6px 0 16px;margin:-10px -22px 0;touch-action:none}
   h3{font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:20px 0 10px}
@@ -398,9 +403,9 @@ function seedBlobs() {
     const r = randR();
     blobs.push(mk(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * (tank.w - 2.4 * r), tank.y0 + tank.h * (0.15 + 0.75 * Math.random()), r, Math.random()));
   }
-  for (let i = 0; i < 0; i++) {
+  for (let i = 0; i < Math.round(particles * 16); i++) {
     const q = mkParticle(tank.x0 + tank.w / 2 + (Math.random() - 0.5) * tank.w * 0.6, tank.y0 + tank.h * (0.1 + 0.8 * Math.random()), Math.random());
-    q.r = q.tr; q.age = 3; blobs.push(q);
+    q.r = q.tr; q.age = 6; blobs.push(q);
   }
 }
 // half-width of the space available at a given screen y (lamp glass narrows toward the top)
@@ -439,7 +444,7 @@ function impact(b, nx, ny, speed) {
   if (speed < 240 * g || t - lastSplash < 4 || t - (b.lastSplash || -99) < 8) return;
   if (b.tr < u * avgR() * 0.85 || !room(1)) return;
   let count = 0; for (const q of blobs) if (q.p && !q.dying) count++;
-  if (count >= Math.round(particles * 16)) return;
+  if (count >= Math.round(particles * 16) + 3) return;
   lastSplash = t; b.lastSplash = t;
   const bs = 1 + 0.14 * breathLvl, tx = -ny, ty = nx, side = Math.random() < 0.5 ? -1 : 1;
   // breaks off the face that hit, and splashes back off it, skewed to one side
@@ -510,6 +515,9 @@ function step1(dt) {
         const inside = Math.hypot(b.x - tg.x, b.y - tg.y) < tg.r * 0.9;
         if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.75 * dt) - u * 0.004 * dt);
         if (!tg.dying && (!b.p || b.fromBig)) tg.tr = Math.sqrt(tg.tr * tg.tr + (before - b.r * b.r));
+      } else if (b.fastMelt) {
+        // removed by the lava slider: melts away on the spot, quickly
+        b.x += b.vx * dt; b.y += b.vy * dt; b.r = Math.max(0, b.r * Math.exp(-4 * dt) - u * 0.01 * dt);
       } else {
         // removed by the lava slider: sinks to the base and melts away there
         b.vy += (30 * g - b.vy) * relax(1, dt); b.x += b.vx * dt; b.y += b.vy * dt;
@@ -518,7 +526,7 @@ function step1(dt) {
       }
       continue;
     }
-    b.r += (b.tr - b.r) * Math.min(1, dt * 1.2);
+    b.r += (b.tr - b.r) * Math.min(1, dt * (b.fast > 0 ? 6 : 1.2)); if (b.fast > 0) b.fast -= dt;
     b.noMerge = Math.max(0, b.noMerge - dt);
     if (b.p) b.age += dt;
 
@@ -605,6 +613,57 @@ function step1(dt) {
 let partTimer = 0;
 const partR = () => u * RANGE()[0] * (0.3 + Math.random() * 0.3);
 function mkParticle(x, y, heat) { const b = mk(x, y, 0.3, heat); b.tr = partR(); b.p = true; b.age = 0; return b; }
+/* ---------- sliders act on the tank immediately ---------- */
+function freeSpot(r) {   // a place in the tank not on top of another blob
+  let best = null, bd = -1;
+  for (let i = 0; i < 12; i++) {
+    const y = tank.y0 + tank.h * (0.12 + 0.76 * Math.random()), hw = Math.max(0, halfWidthAt(y) - r * 1.3);
+    const x = tank.x0 + tank.w / 2 + (Math.random() * 2 - 1) * hw;
+    let dmin = Infinity; for (const b of blobs) if (!b.dying) dmin = Math.min(dmin, Math.hypot(b.x - x, b.y - y) - b.r);
+    if (dmin > bd) { bd = dmin; best = [x, y]; }
+  }
+  return best;
+}
+function applyAmountNow() {
+  const n = targetCount(), live = blobs.filter(b => !b.p && !b.dying).sort((a, b) => a.tr - b.tr);
+  while (live.length > n) { const b = live.shift(); b.dying = b; b.fastMelt = true; }
+  while (live.length < n && room(1)) {
+    const r = randR(), [x, y] = freeSpot(r), b = mk(x, y, 0.5, Math.random());
+    b.tr = r; b.fast = 1; b.noMerge = 3; blobs.push(b); live.push(b);
+  }
+  let A = 0; for (const b of live) A += b.tr * b.tr;
+  if (A > 0) { const f = Math.sqrt(targetArea() / A); for (const b of live) { b.tr *= f; b.fast = 0.8; } }
+  amtTimer = 2;
+}
+function applyBubblesNow() {
+  const target = Math.round(bubbleAmt * MAXB), cx = tank.x0 + tank.w / 2;
+  const live = bubbles.filter(b => b.pop === 0);
+  for (let i = live.length - 1; i >= target; i--) live[i].pop = 0.001;
+  for (let i = live.length; i < target; i++) {
+    const r = Math.min(W, H) * (0.0028 + Math.random() * 0.0055), y = tank.y0 + tank.h * (0.1 + 0.85 * Math.random());
+    bubbles.push({ x: cx + (Math.random() * 2 - 1) * Math.max(0, halfWidthAt(y) - r * 2), y, r, vx: 0, vy: 0, a: 0, seed: Math.random() * 100, pop: 0 });
+  }
+}
+function applyParticlesNow() {
+  const target = Math.round(particles * 16), big = blobs.filter(b => !b.p && !b.dying);
+  const live = blobs.filter(b => b.p && !b.dying);
+  // fewer: extras melt into their nearest blob
+  for (let i = live.length - 1; i >= target && big.length; i--) {
+    const q = live[i]; let nb = big[0];
+    for (const b of big) if (Math.hypot(b.x - q.x, b.y - q.y) - b.r < Math.hypot(nb.x - q.x, nb.y - q.y) - nb.r) nb = b;
+    q.dying = nb;
+  }
+  // more: new droplets bud off the blobs right away
+  for (let i = live.length; i < target && big.length && room(1); i++) {
+    const b = big[Math.floor(Math.random() * big.length)], a = Math.random() * Math.PI * 2;
+    const q = mkParticle(b.x + Math.cos(a) * b.r * 0.8, b.y + Math.sin(a) * b.r * 0.8, b.heat);
+    q.r = q.tr * 0.6; q.age = 6;
+    q.vx = b.vx + Math.cos(a) * 40 * g; q.vy = b.vy + Math.sin(a) * 40 * g;
+    q.fromBig = true; b.tr = Math.sqrt(Math.max(b.tr * b.tr - q.tr * q.tr, (b.tr * 0.6) ** 2));
+    blobs.push(q);
+  }
+}
+
 function particleStep(dt, bs) {
   const target = Math.round(particles * 16);
   const big = blobs.filter(b => !b.p && !b.dying);
@@ -612,12 +671,14 @@ function particleStep(dt, bs) {
   for (const q of blobs) {
     if (!q.p || q.dying) continue;
     count++;
-    if (q.age < 5) continue;
+  }
+  for (const q of blobs) {
+    if (!q.p || q.dying) continue;
     for (const b of big) {
-      if (Math.hypot(q.x - b.x, q.y - b.y) < b.r * bs + q.r * 0.3) {
-        q.dying = b; count--;
-        break;
-      }
+      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs + q.r * 1.3;
+      if (d >= R) continue;
+      if (count > target && q.age > 5) { q.dying = b; count--; break; }   // an extra: melts into the blob it meets
+      q.vx += dx / d * (R - d) * 6 * dt; q.vy += dy / d * (R - d) * 6 * dt; // otherwise it slides around the blob
     }
   }
   // droplets are never created here: they only break off when you stir the wax (see stir())
@@ -658,7 +719,7 @@ function bubbleStep(dt) {
     b.x += b.vx * dt; b.y += b.vy * dt;
     const hl = Math.max(0, halfWidthAt(b.y) - b.r * 1.5);
     b.x = clamp(b.x, cx - hl, cx + hl);
-    if (b.y < tank.y0 + b.r * 2.5 || (bubbles.length > target && Math.random() < dt * 0.3)) b.pop = 0.001;
+    if (b.y < tank.y0 + b.r * 2.5) b.pop = 0.001;
   }
   bubbles = bubbles.filter(b => b.pop < 1);
 }
@@ -953,12 +1014,21 @@ $("#swCue").onclick = () => {
   syncUI();
 };
 [...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
-$("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); amtTimer = 0; };
+$("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
-$("#bub").oninput = e => { bubbleAmt = +e.target.value; store.set("bubbles", bubbleAmt); };
-$("#part").oninput = e => { particles = +e.target.value; store.set("particles", particles); };
+$("#bub").oninput = e => { bubbleAmt = +e.target.value; store.set("bubbles", bubbleAmt); applyBubblesNow(); };
+$("#part").oninput = e => { particles = +e.target.value; store.set("particles", particles); applyParticlesNow(); };
 $("#light").oninput = e => { light = +e.target.value; store.set("light", light); };
 $("#shadow").oninput = e => { shadow = +e.target.value; store.set("shadow", shadow); };
+// while dragging any slider, fade the menu so the tank shows through
+let peekTimer = 0;
+document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
+  const row = inp.closest(".row");
+  const on = () => { clearTimeout(peekTimer); sheet.classList.add("peek"); row.classList.add("active"); };
+  const off = () => { clearTimeout(peekTimer); peekTimer = setTimeout(() => { sheet.classList.remove("peek"); row.classList.remove("active"); }, 450); };
+  inp.addEventListener("pointerdown", on); inp.addEventListener("touchstart", on, { passive: true });
+  inp.addEventListener("pointerup", off); inp.addEventListener("touchend", off); inp.addEventListener("pointercancel", off); inp.addEventListener("change", off);
+});
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 ["cHot", "cCool", "cLiq"].forEach(id => {
   $("#" + id).oninput = e => {
@@ -1067,7 +1137,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.4 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
