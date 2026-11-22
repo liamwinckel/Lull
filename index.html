@@ -238,7 +238,7 @@ void main(){
   for(int i=0;i<${MAX};i++){ if(i>=uN) break; vec4 b=uB[i]; vec2 d=p-b.xy;
     float dd=dot(d,d), R2=b.z*b.z*3.61;
     float k=max(0.,1.-dd/R2); float v=k*k*k*2.646;
-    float hb=b.w>1.5?b.w-2.:b.w, gwt=b.w>1.5?0.:1.;   // melting droplets shape the wax but don't dent its surface
+    float mk=floor(b.w/2.), hb=b.w-mk*2., gwt=1.-mk/15.;   // melting wax fades out of the surface as it melts in
     f+=v; h+=v*hb; rw+=v*b.z*gwt; grad+=d*(-2.646*6.*k*k/R2)*gwt;
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb; float zb=z2*3.2; gg+=d*(-2.*zb/((dd+zb)*(dd+zb)))*gwt*b.z;
     vec2 ds=p-(b.xy+vec2(0.1,-0.24)*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
@@ -532,9 +532,10 @@ function step1(dt) {
       const tg = b.dying, before = b.r * b.r;
       if (tg !== b) {
         // melt: drift along with (and slowly into) the blob absorbing it; only shrinks once inside it
-        b.vx += (tg.vx - b.vx) * relax(2.5, dt); b.vy += (tg.vy - b.vy) * relax(2.5, dt);
+        b.mt = (b.mt || 0) + dt; const ease = Math.min(1, b.mt / 1.5);   // ramps in over ~1.5s, no snap
+        b.vx += (tg.vx - b.vx) * relax(1.2 * ease, dt); b.vy += (tg.vy - b.vy) * relax(1.2 * ease, dt);
         b.x += b.vx * dt; b.y += b.vy * dt;
-        const k = relax(b.p ? 1.4 : 0.9, dt); b.x += (tg.x - b.x) * k; b.y += (tg.y - b.y) * k;
+        const k = relax((b.p ? 1.0 : 0.55) * ease, dt); b.x += (tg.x - b.x) * k; b.y += (tg.y - b.y) * k;
         const inside = Math.hypot(b.x - tg.x, b.y - tg.y) < tg.r * 0.9;
         if (inside || !b.p) b.r = Math.max(0, b.r * Math.exp(-0.75 * dt) - u * 0.004 * dt);
         if (!tg.dying && (!b.p || b.fromBig)) tg.tr = Math.sqrt(tg.tr * tg.tr + (before - b.r * b.r));
@@ -550,6 +551,8 @@ function step1(dt) {
       continue;
     }
     b.r += (b.tr - b.r) * Math.min(1, dt * (b.fast > 0 ? 6 : 1.2)); if (b.fast > 0) b.fast -= dt;
+    if (b.push) { const w = Math.sin(Math.min(1, b.push.t / 0.6) * Math.PI) * dt / 0.38; b.vx += b.push.ax * w; b.vy += b.push.ay * w; b.push.t += dt; if (b.push.t > 0.6) b.push = null; }
+    if (b.seedT !== undefined) { b.seed += (b.seedT - b.seed) * relax(0.35, dt); if (Math.abs(b.seedT - b.seed) < 0.01) { b.seed = b.seedT; delete b.seedT; } }
     b.noMerge = Math.max(0, b.noMerge - dt);
     if (b.p) b.age += dt;
 
@@ -865,7 +868,11 @@ function render() {
   const bs = 1 + 0.14 * breathLvl;
   let n = 0;
   for (const b of [...blobs.filter(b => !b.p), ...blobs.filter(b => b.p)]) {
-    const hv = b.heat + (b.dying && b.dying !== b ? 2 : 0);
+    let hv = Math.min(b.heat, 0.999);
+    if (b.dying && b.dying !== b) {
+      if (b.r0 === undefined) b.r0 = Math.max(b.r, 0.01);
+      hv += 2 * Math.round(15 * (1 - clamp(b.r / b.r0, 0, 1)));
+    }
     if (b.p) {
       if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
       continue;
@@ -1173,12 +1180,15 @@ function tap(x, y) {
   }
   const a0 = Math.random() * Math.PI * 2;
   blobs.splice(blobs.indexOf(hit), 1);
+  const startR = hit.r * (k === 3 ? 0.93 : 1.0);   // k overlapping copies of this size draw exactly like the original
   for (let i = 0; i < k; i++) {
     const a = a0 + (i / k) * Math.PI * 2;
-    const c = mk(hit.x + Math.cos(a) * hit.r * 0.25, hit.y + Math.sin(a) * hit.r * 0.25, hit.r * 0.75, hit.heat);
+    const c = mk(hit.x, hit.y, startR, hit.heat);
     c.tr = cr; c.noMerge = 6 + Math.random() * 4;
-    const sp = (90 + Math.random() * 50) * g;
-    c.vx = hit.vx + Math.cos(a) * sp; c.vy = hit.vy + Math.sin(a) * sp;
+    c.seedT = c.seed; c.seed = hit.seed;             // same shape as the original at first, then becomes its own
+    c.sq = hit.sq || 0; c.sqv = hit.sqv || 0; c.snx = hit.snx; c.sny = hit.sny;
+    c.vx = hit.vx; c.vy = hit.vy;
+    c.push = { ax: Math.cos(a) * (55 + Math.random() * 25) * g, ay: Math.sin(a) * (55 + Math.random() * 25) * g, t: 0 };
     blobs.push(c);
   }
   audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
@@ -1227,7 +1237,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v9.7 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v9.8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
