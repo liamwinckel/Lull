@@ -119,6 +119,8 @@
   </div>
   <div class="row" style="margin-top:6px"><span>Lava</span>
     <span style="font-size:12px;opacity:.5">Less</span><input type="range" id="amt" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">More</span></div>
+  <div class="row"><span>Stirring</span>
+    <span style="font-size:12px;opacity:.5">Gentle</span><input type="range" id="stirk" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Strong</span></div>
   <div class="row"><span>Merging</span>
     <span style="font-size:12px;opacity:.5">Never</span><input type="range" id="absorb" min="0" max="1" step="0.01"><span style="font-size:12px;opacity:.5">Easily</span></div>
   <div class="row"><span>Bubbles</span>
@@ -341,7 +343,7 @@ function screenSize() {
 }
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
-let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35);
+let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
 let particles = store.get("particles", 0.5), light = store.get("light", 0.5), shadow = store.get("shadow", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
@@ -1072,7 +1074,7 @@ const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H
 function syncUI() {
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
-  $("#bub").value = bubbleAmt; $("#absorb").value = absorb;
+  $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
   $("#amt").value = amount; $("#part").value = particles; $("#light").value = light; $("#shadow").value = shadow;
   $("#btnSound").innerHTML = soundOn ? ICON_ON : ICON_OFF;
   $("#swSound").classList.toggle("on", soundOn);
@@ -1159,6 +1161,7 @@ $("#swCue").onclick = () => {
 [...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
+$("#stirk").oninput = e => { stirSens = +e.target.value; store.set("stir", stirSens); };
 $("#absorb").oninput = e => { absorb = +e.target.value; store.set("absorb", absorb); };
 $("#bub").oninput = e => { bubbleAmt = +e.target.value; store.set("bubbles", bubbleAmt); applyBubblesNow(); };
 $("#part").oninput = e => { particles = +e.target.value; store.set("particles", particles); applyParticlesNow(); };
@@ -1185,7 +1188,9 @@ $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); a
 const pointers = new Map();
 let swipe = null, lastNoteT = 0;
 function stir(x, y, fvx, fvy, dtp) {
-  const mag = Math.hypot(fvx, fvy), cap = 2600;
+  const sens = Math.pow(3, stirSens * 2 - 1);   // Stirring slider: 1/3x (gentle) .. 3x (strong), 1x in the middle
+  fvx *= sens; fvy *= sens; dtp *= sens;
+  const mag = Math.hypot(fvx, fvy), cap = 2600 * sens;
   if (mag > cap) { fvx *= cap / mag; fvy *= cap / mag; }
   const bs = 1 + 0.14 * breathLvl;
   for (const b of blobs) {
@@ -1308,7 +1313,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.10 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.11 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
