@@ -59,6 +59,9 @@
   #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:transparent}
   #sheet.peek .card > *:not(.active),#sheet.peek .grab{opacity:.07}
   #sheet.peek .row.active{background:rgba(14,14,18,.55);border-radius:14px;padding-left:10px;padding-right:10px}
+  .sun{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.3);position:relative}
+  .sun::after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px;border-radius:50%;background:rgba(255,150,80,.7)}
+  .sun i{position:absolute;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff}
   .chead{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 12px;font-size:15px;font-weight:600}
   .chead span + span{font-size:12px;font-weight:400;opacity:.62}
   .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
@@ -146,6 +149,8 @@
     </div>
     <div class="row"><span>Lighting</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Light from</span><input type="range" id="lightAng" min="0" max="1" step="0.005">
+      <span class="sun" aria-hidden="true"><i id="sunDot"></i></span></div>
   </section>
 
   <section class="card" data-card="lava">
@@ -168,6 +173,12 @@
     <div class="chead" style="margin-top:14px"><span>Sound</span></div>
     <div class="row"><span>Ambient</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
     <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Ambience</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Pops</span><input type="range" id="popVol" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Stir tones</span><input type="range" id="toneVol" min="0" max="1" step="0.01"></div>
+    <div class="seg" id="toneSeg" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
+      <button data-t="chime">Chime</button><button data-t="glass">Glass</button><button data-t="soft">Soft</button>
+    </div>
     <div class="hint" id="ver" style="margin:10px 0 0;font-size:10px;opacity:.3"></div>
   </section>
 
@@ -253,7 +264,7 @@ const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
 precision highp float;
 uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
-uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle; uniform vec2 uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float prof(float s){ s=clamp(s,0.,1.); return s<0.28 ? 0.8+0.2*sin(s/0.28*1.5708) : 1.-0.45*pow((s-0.28)/0.72,1.3); }
 void main(){
@@ -264,7 +275,7 @@ void main(){
     float mk=floor(b.w/2.), hb=b.w-mk*2., gwt=1.-mk/63.;   // melting wax fades out of the surface as it melts in
     f+=v; h+=v*hb; rw+=v*b.z*gwt; grad+=d*(-2.646*6.*k*k/R2)*gwt;
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb; float zb=z2*3.2; gg+=d*(-2.*zb/((dd+zb)*(dd+zb)))*gwt*b.z;
-    vec2 ds=p-(b.xy+vec2(0.1,-0.24)*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
+    vec2 ds=p-(b.xy-uLdir*0.26*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
   float lf=0.3+1.4*uLight, sf=uShadow*2.;
   float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
   float y=p.y/uRes.y, inside=1., hw=1., dxn=0.;
@@ -296,7 +307,7 @@ void main(){
     float rho=pow(1.-clamp(((f-1.)/max(gl2,1e-5))/max(Rd,1.),0.,1.),1.3);
     vec2 dir=gl2>1e-6?-grad/gl2:vec2(0.);
     vec3 n=vec3(dir*rho*0.96,sqrt(max(0.,1.-rho*rho*0.92)));
-    vec3 Lk=normalize(vec3(-0.45,0.6,0.65)), Lb=normalize(vec3(0.15,-0.85,0.5));
+    vec3 Lk=normalize(vec3(uLdir*0.75,0.65)), Lb=normalize(vec3(0.15,-0.85,0.5));
     float dif=max(dot(n,Lk),0.), bot=max(dot(n,Lb),0.);
     float spc=pow(max(dot(n,normalize(Lk+vec3(0.,0.,1.))),0.),18.);
     float fres=pow(1.-n.z,2.2);
@@ -345,7 +356,7 @@ gl.linkProgram(prog); gl.useProgram(prog);
 const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uLdir"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
 const appEl = $("#app");
@@ -365,6 +376,7 @@ function screenSize() {
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
 let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
+let ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), lightAng = store.get("lightAng", 0.44);
 let particles = store.get("particles", 0.5), light = store.get("light", 0.5), shadow = store.get("shadow", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
@@ -989,6 +1001,7 @@ function render() {
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
+  { const th = (270 - lightAng * 360) * Math.PI / 180; gl.uniform2f(U.uLdir, Math.cos(th), Math.sin(th)); }
   gl.uniform1f(U.uLight, light); gl.uniform1f(U.uShadow, shadow); gl.uniform1f(U.uStyle, style === "3d" ? 1 : 0);
   let nb = 0;
   for (const b of bubbles) {
@@ -1016,21 +1029,24 @@ function frame(now) {
 
 /* ---------- audio ---------- */
 const audio = (() => {
-  let AC = null, master, dry, fx, ambF, amb;
+  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus;
   const SCALE = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
   function init() {
     if (AC) return;
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     master = AC.createGain(); master.gain.value = 0; master.connect(AC.destination);
     dry = AC.createGain(); dry.connect(master);
+    ambBus = AC.createGain(); ambBus.connect(master);
+    popBus = AC.createGain(); toneBus = AC.createGain();
     const delay = AC.createDelay(1); delay.delayTime.value = 0.37;
     const fb = AC.createGain(); fb.gain.value = 0.42;
     const dl = AC.createBiquadFilter(); dl.type = "lowpass"; dl.frequency.value = 1600;
     fx = AC.createGain(); fx.gain.value = 0.55;
     fx.connect(delay); delay.connect(dl); dl.connect(fb); fb.connect(delay); dl.connect(master);
+    for (const bus of [popBus, toneBus]) { bus.connect(dry); bus.connect(fx); }
 
     ambF = AC.createBiquadFilter(); ambF.type = "lowpass"; ambF.frequency.value = 340; ambF.Q.value = 0.8;
-    amb = AC.createGain(); amb.gain.value = 0.5; ambF.connect(amb); amb.connect(master);
+    amb = AC.createGain(); amb.gain.value = 0.5; ambF.connect(amb); amb.connect(ambBus);
     [[55, "sine", 0.45], [82.41, "sine", 0.3], [110.2, "triangle", 0.22], [164.8, "sine", 0.12], [220.4, "sine", 0.05]].forEach(([f, type, v]) => {
       const o = AC.createOscillator(); o.type = type; o.frequency.value = f;
       const gg = AC.createGain(); gg.gain.value = v; o.connect(gg); gg.connect(ambF); o.start();
@@ -1049,39 +1065,50 @@ const audio = (() => {
   function level() {
     if (!AC) return;
     master.gain.setTargetAtTime(soundOn ? volume * 0.9 : 0, AC.currentTime, 0.5);
+    ambBus.gain.setTargetAtTime(ambVol * 1.4, AC.currentTime, 0.3);
+    popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
+    toneBus.gain.setTargetAtTime(toneVol * 1.4, AC.currentTime, 0.1);
   }
   function resume() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
-  function env(o, peak, a, rel, to = dry) {
+  function env(o, peak, a, rel, bus) {
     const tt = AC.currentTime, gg = AC.createGain();
     gg.gain.setValueAtTime(0, tt); gg.gain.linearRampToValueAtTime(peak, tt + a);
     gg.gain.exponentialRampToValueAtTime(0.0001, tt + a + rel);
-    o.connect(gg); gg.connect(to); gg.connect(fx); o.start(tt); o.stop(tt + a + rel + 0.05);
+    o.connect(gg); gg.connect(bus); o.start(tt); o.stop(tt + a + rel + 0.05);
   }
   return {
     init, level, resume,
     suspend() { if (AC) AC.suspend().catch(() => {}); },
     note(yFrac) {
-      if (!AC || !soundOn) return;
-      const idx = clamp(Math.floor((1 - yFrac) * SCALE.length), 0, SCALE.length - 1);
-      const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = SCALE[idx];
-      env(o, 0.07, 0.06, 2.2);
-      const o2 = AC.createOscillator(); o2.type = "sine"; o2.frequency.value = SCALE[idx] * 2.005;
-      env(o2, 0.015, 0.08, 1.4);
+      if (!AC || !soundOn || toneVol <= 0.001) return;
+      const idx = clamp(Math.floor((1 - yFrac) * SCALE.length), 0, SCALE.length - 1), f = SCALE[idx];
+      const osc = (type, freq) => { const o = AC.createOscillator(); o.type = type; o.frequency.value = freq; return o; };
+      if (toneStyle === "glass") {          // bright, bell-like
+        env(osc("sine", f * 2), 0.05, 0.004, 1.8, toneBus);
+        env(osc("sine", f * 5.52), 0.012, 0.002, 0.7, toneBus);
+      } else if (toneStyle === "soft") {    // warm, rounded pad-like note
+        const o = osc("triangle", f * 0.5), lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
+        o.connect(lp); const fake = { connect: n => lp.connect(n), start: t => o.start(t), stop: t => o.stop(t) };
+        env(fake, 0.09, 0.18, 2.6, toneBus);
+      } else {                              // chime (original)
+        env(osc("sine", f), 0.07, 0.06, 2.2, toneBus);
+        env(osc("sine", f * 2.005), 0.015, 0.08, 1.4, toneBus);
+      }
     },
     plip() {
-      if (!AC || !soundOn) return;
+      if (!AC || !soundOn || popVol <= 0.001) return;
       const o = AC.createOscillator(); o.type = "sine"; const tt = AC.currentTime;
       o.frequency.setValueAtTime(900, tt); o.frequency.exponentialRampToValueAtTime(1700, tt + 0.06);
-      env(o, 0.05, 0.005, 0.12);
+      env(o, 0.05, 0.005, 0.12, popBus);
     },
     bloop(size) {
-      if (!AC || !soundOn) return;
+      if (!AC || !soundOn || popVol <= 0.001) return;
       [0, 0.08].forEach((delay, i) => {
         setTimeout(() => {
           const o = AC.createOscillator(); o.type = "sine";
           const f0 = (160 + (1 - size) * 260) * (i ? 1.5 : 1), tt = AC.currentTime;
           o.frequency.setValueAtTime(f0, tt); o.frequency.exponentialRampToValueAtTime(f0 * 2.3, tt + 0.14);
-          env(o, i ? 0.1 : 0.2, 0.012, 0.32);
+          env(o, i ? 0.1 : 0.2, 0.012, 0.32, popBus);
         }, delay * 1000);
       });
     },
@@ -1110,7 +1137,8 @@ const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
 const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
-  particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume });
+  particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume,
+  ambVol, popVol, toneVol, toneStyle, lightAng });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renderPresets() {
   const box = $("#presetList"); box.innerHTML = "";
@@ -1140,6 +1168,8 @@ function applyPreset(p) {
   amount = v.amount ?? amount; absorb = v.absorb ?? absorb; stirSens = v.stir ?? stirSens; bubbleAmt = v.bubbles ?? bubbleAmt;
   particles = v.particles ?? particles; style = v.style ?? style; light = v.light ?? light; shadow = v.shadow ?? shadow;
   breathId = v.breath ?? breathId; cueOn = v.cue ?? cueOn; volume = v.vol ?? volume;
+  ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; lightAng = v.lightAng ?? lightAng;
+  for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, lightAng })) store.set(k, val); audio.level();
   for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, breath: breathId, cue: cueOn, vol: volume })) store.set(k, val);
   breathT = 0; breathPhase = -1;
   applyTheme(v.theme || themeId);
@@ -1154,6 +1184,9 @@ function syncUI() {
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
   $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
+  $("#ambVol").value = ambVol; $("#popVol").value = popVol; $("#toneVol").value = toneVol; $("#lightAng").value = lightAng;
+  [...$("#toneSeg").children].forEach(b => b.classList.toggle("on", b.dataset.t === toneStyle));
+  { const th = (270 - lightAng * 360) * Math.PI / 180, d = $("#sunDot"); if (d) { d.style.left = (50 + Math.cos(th) * 42) + "%"; d.style.top = (50 - Math.sin(th) * 42) + "%"; } }
   $("#amt").value = amount; $("#part").value = particles; $("#light").value = light; $("#shadow").value = shadow;
   $("#swSound").classList.toggle("on", soundOn);
   $("#swCue").classList.toggle("on", cueOn);
@@ -1254,6 +1287,11 @@ $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount)
 document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
   if (activePreset) { activePreset = null; store.set("activePreset", null); renderPresets(); }
 }));
+for (const [id, key] of [["ambVol", "ambVol"], ["popVol", "popVol"], ["toneVol", "toneVol"]]) {
+  $("#" + id).oninput = e => { const v = +e.target.value; if (key === "ambVol") ambVol = v; else if (key === "popVol") popVol = v; else toneVol = v; store.set(key, v); audio.level(); };
+}
+[...$("#toneSeg").children].forEach(b => b.onclick = () => { toneStyle = b.dataset.t; store.set("toneStyle", toneStyle); syncUI(); audio.note(0.4); });
+$("#lightAng").oninput = e => { lightAng = +e.target.value; store.set("lightAng", lightAng); syncUI(); };
 $("#stirk").oninput = e => { stirSens = +e.target.value; store.set("stir", stirSens); };
 $("#absorb").oninput = e => { absorb = +e.target.value; store.set("absorb", absorb); };
 $("#bub").oninput = e => { bubbleAmt = +e.target.value; store.set("bubbles", bubbleAmt); applyBubblesNow(); };
@@ -1407,7 +1445,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v11.4 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v12 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
