@@ -878,6 +878,7 @@ const svg = $("#lamp");
 function drawLamp() {
   document.body.classList.toggle("lampview", !!lampGeo);
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.display = lampGeo ? "" : "none";
   if (!lampGeo) { svg.innerHTML = ""; return; }
   const { cx, top, L, gT, gB, hwMax, bottom } = lampGeo;
   const hb = hwMax * prof(0), ht = hwMax * prof(1);
@@ -918,6 +919,7 @@ function setView(v) {
     view = v;
     computeTank(); remap(ot, oScale, oLamp); drawLamp();
     canvas.classList.remove("fade"); svg.classList.remove("fade");
+    if (view !== viewSel) { const want = viewSel; viewSel = view; setView(want); }   // a later tap won: follow it
   }, 360);
   syncUI();
 }
@@ -1190,7 +1192,9 @@ BREATHS.forEach(B => {
   $("#breathSeg").appendChild(b);
 });
 let openCard = null;
+function clearPeek() { clearTimeout(peekTimer); sheet.classList.remove("peek"); sheet.querySelectorAll(".row.active").forEach(r => r.classList.remove("active")); }
 function openSheet(name) {
+  clearPeek();
   openCard = name; sheetOpen = true;
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
@@ -1201,7 +1205,7 @@ function openSheet(name) {
 function closeSheet() {
   sheetOpen = false;
   sheet.style.transition = ""; sheet.style.transform = "";
-  sheet.classList.remove("open"); openCard = null;
+  sheet.classList.remove("open"); openCard = null; clearPeek();
   controls.querySelectorAll(".ctl").forEach(c => c.classList.remove("on"));
   wake();
 }
@@ -1258,12 +1262,13 @@ $("#light").oninput = e => { light = +e.target.value; store.set("light", light);
 $("#shadow").oninput = e => { shadow = +e.target.value; store.set("shadow", shadow); };
 // while dragging any slider, fade the menu so the tank shows through
 let peekTimer = 0;
+for (const ev of ["pointerup", "touchend", "touchcancel", "pointercancel"]) document.addEventListener(ev, () => { if (sheet.classList.contains("peek")) { clearTimeout(peekTimer); peekTimer = setTimeout(clearPeek, 450); } }, true);
 document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   const row = inp.closest(".row");
   const on = () => { clearTimeout(peekTimer); sheet.classList.add("peek"); row.classList.add("active"); };
   const off = () => { clearTimeout(peekTimer); peekTimer = setTimeout(() => { sheet.classList.remove("peek"); row.classList.remove("active"); }, 450); };
   inp.addEventListener("pointerdown", on); inp.addEventListener("touchstart", on, { passive: true });
-  inp.addEventListener("pointerup", off); inp.addEventListener("touchend", off); inp.addEventListener("pointercancel", off); inp.addEventListener("change", off);
+  inp.addEventListener("pointerup", off); inp.addEventListener("touchend", off); inp.addEventListener("pointercancel", off); inp.addEventListener("touchcancel", off); inp.addEventListener("change", off); inp.addEventListener("blur", off);
 });
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 ["cHot", "cCool", "cLiq"].forEach(id => {
@@ -1402,7 +1407,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v11.3 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v11.4 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
