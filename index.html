@@ -548,7 +548,13 @@ function step1(dt) {
         const settle = Math.exp(-dt * (b.p ? 2.2 : 0.16 + 0.9 * absorb * absorb));
         b.off[0] *= settle; b.off[1] *= settle;
         const e = Math.min(1, b.mt / 0.7), ee = e * e * (3 - 2 * e);           // blend from its own motion into riding along
-        const fx = b.x + b.vx * dt, fy = b.y + b.vy * dt, rx = tg.x + b.off[0], ry = tg.y + b.off[1];
+        let rx = tg.x + b.off[0], ry = tg.y + b.off[1];
+        { // melting wax stays inside the walls too (it would otherwise look like it slipped out and vanished)
+          const m = b.r * 0.95, cxx = tank.x0 + tank.w / 2, hl = Math.max(0, halfWidthAt(ry) - m);
+          const cxr = clamp(rx, cxx - hl, cxx + hl), cyr = clamp(ry, tank.y0 + m, tank.y0 + tank.h - m);
+          b.off[0] += cxr - rx; b.off[1] += cyr - ry; rx = cxr; ry = cyr;
+        }
+        const fx = b.x + b.vx * dt, fy = b.y + b.vy * dt;
         b.x = fx + (rx - fx) * ee; b.y = fy + (ry - fy) * ee;
         b.vx += (tg.vx - b.vx) * relax(2, dt); b.vy += (tg.vy - b.vy) * relax(2, dt);
         const sunk = !b.p || Math.hypot(b.off[0], b.off[1]) < tg.r * 0.55;   // a droplet only shrinks once it's inside
@@ -1317,7 +1323,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v10.8 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v10.9 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
