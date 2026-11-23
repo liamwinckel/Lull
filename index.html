@@ -1591,9 +1591,13 @@ function drawFx(b, t) {
       const x = ((t * 0.12 + sd) % 1.5 - 0.25) * Math.max(fw, 60), g = c.createRadialGradient(x, H * 0.4, 0, x, H * 0.4, 46);
       g.addColorStop(0, `rgba(255,250,235,${0.12 + 0.45 * v})`); g.addColorStop(1, "rgba(255,250,235,0)"); c.fillStyle = g; c.fillRect(0, 0, W0, H); break; }
     case "shadow": {
-      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(0,0,0,${0.05 + 0.6 * v})`); g.addColorStop(0.55, `rgba(0,0,0,${0.25 * v})`); g.addColorStop(1, "rgba(0,0,0,0)");
+      // the bar itself is shaded: lit from below, falling into shadow on top, and casting a shadow onto the track
+      const k = v * v * 0.4 + v * 0.6;
+      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(0,0,0,${0.7 * k})`); g.addColorStop(0.5, `rgba(0,0,0,${0.22 * k})`); g.addColorStop(0.82, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(255,235,210,${0.18 * (1 - k * 0.5)})`);
       c.fillStyle = g; c.fillRect(0, 0, W0, H);
-      for (let i = 0; i < 4; i++) { const x = (R(i, 1) * 1.2 - 0.1) * fw + Math.sin(t * 0.4 + i) * 8; circ(x, H * 0.3, 10 + R(i, 2) * 10, `rgba(0,0,0,${0.3 * v})`); } break; }
+      const e = c.createLinearGradient(Math.max(0, fw - 70), 0, fw, 0); e.addColorStop(0, "rgba(0,0,0,0)"); e.addColorStop(1, `rgba(0,0,0,${0.45 * k})`);
+      c.fillStyle = e; c.fillRect(0, 0, W0, H);
+      b.fill.style.boxShadow = `inset 0 1px 0 rgba(255,255,255,${0.28 * (1 - k)}),${8 + 16 * k}px 4px ${14 + 14 * k}px rgba(0,0,0,${0.75 * k})`; break; }
     case "trans": {
       b.fill.style.opacity = 1 - 0.8 * v;
       c.strokeStyle = `rgba(255,255,255,${0.12 + 0.3 * v})`; c.lineWidth = 1.2;
@@ -1702,9 +1706,8 @@ document.querySelectorAll(".cbtn").forEach(btn => {
     if (!hd.live) { if (Math.hypot(e.clientX - hd.x0, e.clientY - hd.y0) > 8) hd.go(); return; }
     e.preventDefault();
     // one strip-height of finger travel sweeps the whole rainbow; sideways goes lighter (right) or darker (left)
-    const sh = vhue.getBoundingClientRect().height || 400;
-    vh = ((hd.h0 + (e.clientY - hd.y0) / sh * 360) % 360 + 360) % 360;
-    vl = clamp(hd.l0 + (e.clientX - hd.x0) / 260, 0.04, 0.95);
+    const r = vhue.getBoundingClientRect();
+    vh = clamp((e.clientY - r.top) / r.height, 0, 0.9999) * 360;
     vSet();
   });
   const up = e => {
@@ -1849,7 +1852,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v18 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v19 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
