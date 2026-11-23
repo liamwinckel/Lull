@@ -76,8 +76,8 @@
   #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:transparent}
   #sheet.peek .card > *:not(.active),#sheet.peek .grab{opacity:.07}
   #sheet.peek .row.active{background:rgba(14,14,18,.55);border-radius:14px;padding-left:10px;padding-right:10px}
-  .frames{display:flex;gap:8px;overflow-x:auto;padding:8px 0 6px;-webkit-overflow-scrolling:touch}
-  .frame{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;width:62px;padding:6px 0 5px;border-radius:14px;border:1.5px solid transparent;background:rgba(255,255,255,.05);color:#fff;font-size:10.5px}
+  .frames{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 0 6px}
+  .frame{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;padding:6px 0 5px;border-radius:14px;border:1.5px solid transparent;background:rgba(255,255,255,.05);color:#fff;font-size:10.5px}
   .frame.on{border-color:#fff;background:rgba(255,255,255,.1)}
   .frame span{opacity:.8}
   .frame.del{border-color:#ff6b6b}
@@ -389,6 +389,7 @@ const BREATHS = [
 ];
 const PHASE_LABEL = ["Breathe in", "Hold", "Breathe out", "Hold"];
 let breathId = store.get("breath", "off");
+if (!store.get("breathReset1", false)) { breathId = "off"; store.set("breath", "off"); store.set("breathReset1", true); }   // older presets could switch it on
 let cueOn = store.get("cue", true);
 let soundOn = store.get("sound", true);
 let volume = store.get("vol", 0.7);
@@ -710,7 +711,7 @@ function renderFrames() {
     const b = document.createElement("button"); b.className = "frame" + (F.id === frameId && viewSel === "lamp" ? " on" : "") + (mine ? " mine" : "");
     b.setAttribute("aria-label", F.name + " lamp");
     const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
-    b.innerHTML = `<svg viewBox="0 0 44 74" width="44" height="74" aria-hidden="true">${frameSVG(F, geo, { id: "t" + F.id, thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot })}</svg><span>${F0.name}</span>`;
+    b.innerHTML = `<svg viewBox="0 0 44 74" width="44" height="74" aria-hidden="true">${frameSVG(F, geo, { id: "t" + (++thumbGen) + F.id, thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot })}</svg><span>${F0.name}</span>`;
     b.onclick = () => { if (b.dataset.held) { delete b.dataset.held; return; } setFrame(F.id); };
     if (mine) {   // hold one of your lamps to delete it
       let ht = 0; b.addEventListener("pointerdown", () => { ht = setTimeout(() => { b.dataset.held = 1;
@@ -1457,7 +1458,7 @@ const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
 const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
-  particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume,
+  particles, style, light, shadow, sound: soundOn, vol: volume,
   ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId, lampMods: { ...lampMods } });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renamePreset(i, el) {
@@ -1524,11 +1525,10 @@ function applyPreset(p) {
   custom = { ...custom, ...(v.custom || {}) }; store.set("custom", custom);
   amount = v.amount ?? amount; absorb = v.absorb ?? absorb; stirSens = v.stir ?? stirSens; bubbleAmt = v.bubbles ?? bubbleAmt;
   particles = v.particles ?? particles; style = v.style ?? style; light = v.light ?? light; shadow = v.shadow ?? shadow;
-  breathId = v.breath ?? breathId; cueOn = v.cue ?? cueOn; volume = v.vol ?? volume;
+  volume = v.vol ?? volume;
   ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; trans = v.trans ?? trans; lightMode = v.lightMode ?? lightMode;
   for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, trans, lightMode })) store.set(k, val); audio.level();
-  for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, breath: breathId, cue: cueOn, vol: volume })) store.set(k, val);
-  breathT = 0; breathPhase = -1;
+  for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, vol: volume })) store.set(k, val);
   applyTheme(v.theme || themeId);
   const nm = v.lampMods || {}, modsDiffer = JSON.stringify(nm) !== JSON.stringify(lampMods || {});
   if (v.frame && (v.frame !== frameId || modsDiffer)) {
@@ -1622,7 +1622,7 @@ const FEATURED = [
   { name: "Molten gold", s: { theme: "gold", frame: "brass", lampMods: {}, style: "3d", lightMode: "classic", light: 0.6, shadow: 0.7, trans: 0.12, amount: 0.65, absorb: 0.3, bubbles: 0.15, particles: 0.25, view: "lamp" } },
   { name: "Glass jelly", s: { theme: "jelly", frame: "capsule", lampMods: {}, style: "3d", lightMode: "bulb", light: 0.55, shadow: 0.35, trans: 0.95, amount: 0.5, absorb: 0.55, bubbles: 0.55, particles: 0.15, view: "lamp" } },
   { name: "Ember", s: { theme: "ember", frame: "rocket", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.4, shadow: 0.85, trans: 0.25, amount: 0.55, absorb: 0.4, bubbles: 0.2, particles: 0.6, view: "lamp" } },
-  { name: "Lilac dream", s: { theme: "midnight", frame: "hourglass", lampMods: {}, style: "soft", lightMode: "bulb", light: 0.55, shadow: 0.4, trans: 0.5, amount: 0.5, absorb: 0.75, bubbles: 0.35, particles: 0.2, breath: "calm", view: "lamp" } },
+  { name: "Lilac dream", s: { theme: "midnight", frame: "hourglass", lampMods: {}, style: "soft", lightMode: "bulb", light: 0.55, shadow: 0.4, trans: 0.5, amount: 0.5, absorb: 0.75, bubbles: 0.35, particles: 0.2, view: "lamp" } },
   { name: "Moss garden", s: { theme: "forest", frame: "bottle", lampMods: {}, style: "3d", lightMode: "bulb", light: 0.5, shadow: 0.6, trans: 0.4, amount: 0.55, absorb: 0.3, bubbles: 0.25, particles: 0.7, view: "lamp" } },
   { name: "Gallery", s: { theme: "mono", frame: "minimal", lampMods: {}, style: "3d", lightMode: "classic", light: 0.55, shadow: 0.75, trans: 0.2, amount: 0.45, absorb: 0.25, bubbles: 0.1, particles: 0.1, view: "lamp" } },
   { name: "Bubblegum", s: { theme: "rose", frame: "capsule", lampMods: { mat: "rose" }, style: "soft", lightMode: "bulb", light: 0.65, shadow: 0.3, trans: 0.45, amount: 0.5, absorb: 0.55, bubbles: 0.7, particles: 0.4, view: "lamp" } },
@@ -1637,6 +1637,7 @@ const FEATURED = [
   { name: "Mermaid", s: { theme: "mermaid", frame: "hourglass", lampMods: { mat: "mint" }, style: "3d", lightMode: "bulb", light: 0.55, shadow: 0.45, trans: 0.7, amount: 0.5, absorb: 0.5, bubbles: 0.55, particles: 0.35 } },
   { name: "Smoke & mirrors", s: { theme: "smoke", frame: "minimal", lampMods: { mat: "gunmetal" }, style: "3d", lightMode: "classic", light: 0.45, shadow: 0.85, trans: 0.5, amount: 0.5, absorb: 0.3, bubbles: 0.15, particles: 0.15 } },
 ];
+let thumbGen = 0;
 function presetLook(v) {
   const t = v.theme === "custom" && v.custom ? { hot: v.custom.hot, cool: v.custom.cool, liqBot: v.custom.liq, liqTop: rgb2hex(hex2rgb(v.custom.liq).map(x => x * 0.25)) } : themeById(v.theme || themeId);
   return { t, F: frameWith(v.frame || frameId, v.lampMods) };
@@ -1649,7 +1650,7 @@ function presetTile(p, i) {
   b.style.background = `radial-gradient(90% 70% at 72% 105%,${t.hot}55,transparent 65%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
   const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;opacity:${op};background:${v.style === "3d" ? `radial-gradient(circle at 40% 35%,${t.hot},${t.cool} 75%)` : `radial-gradient(circle,${t.hot},${t.cool})`};box-shadow:0 0 ${10 + 14 * (v.light ?? 0.5)}px ${t.hot}66"></i>`;
   const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
-  const lamp = `<svg class="tl" viewBox="0 0 44 74" aria-hidden="true">${frameSVG(F, geo, { id: "pt" + (i ?? "f") + p.name.replace(/\W/g, ""), thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot })}</svg>`;
+  const lamp = `<svg class="tl" viewBox="0 0 44 74" aria-hidden="true">${frameSVG(F, geo, { id: "pt" + (++thumbGen) + (i ?? "f") + p.name.replace(/\W/g, ""), thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot })}</svg>`;
   b.innerHTML = blob(10, 16, 22) + blob(30, 40, 13) + blob(14, 54, 9) + lamp +
     `<small>${MAT_NAMES[F.mat] || ""} · ${v.style === "3d" ? "3D" : "Soft"}</small><b>${p.name}</b>`;
   return b;
@@ -1683,6 +1684,7 @@ function openSheet(name) {
   if (name === "lamp" && viewSel === "full") { lampPreview = true; setView("lamp", true); }
   else if (name !== "lamp" && lampPreview) { lampPreview = false; setView("full", true); }
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
+  if (name === "presets") renderPresets(); else if (name === "lamp") renderFrames();
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
@@ -2102,7 +2104,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v25 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v26 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
