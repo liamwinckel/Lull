@@ -65,15 +65,15 @@
   .frame span{opacity:.8}
   .cbtn{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;background:rgba(255,255,255,.06);border:none;border-radius:12px;padding:8px 10px;color:#fff;touch-action:none}
   .cbtn i{width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.35);flex:none}
-  #picker{position:absolute;left:0;top:0;width:300px;height:230px;border-radius:24px;overflow:hidden;opacity:0;transform:scale(.25);pointer-events:none;
+  #picker{position:absolute;left:0;top:0;width:300px;height:64px;border-radius:20px;overflow:hidden;opacity:0;transform:scale(.25);pointer-events:none;
     transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .25s ease;box-shadow:0 14px 44px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.22);z-index:20}
   #picker.show{opacity:1;transform:scale(1)}
   #pickCv{width:100%;height:100%;display:block}
-  #pickRing{position:absolute;width:28px;height:28px;margin:-14px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.4)}
-  #pickBubble{position:absolute;width:56px;height:56px;margin:-28px;border-radius:50%;border:3px solid #fff;box-shadow:0 6px 20px rgba(0,0,0,.5);
+  #pickRing{position:absolute;width:22px;height:22px;margin:-11px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.4)}
+  #pickBubble{position:absolute;width:40px;height:40px;margin:-20px;border-radius:50%;border:3px solid #fff;box-shadow:0 6px 20px rgba(0,0,0,.5);
     opacity:0;transform:scale(.4);transition:opacity .2s,transform .28s cubic-bezier(.2,.8,.2,1);pointer-events:none;z-index:21}
   #pickBubble.show{opacity:1;transform:scale(1)}
-  #sheet.picking{opacity:.18}
+  #sheet.picking{opacity:0}
   .chead{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 12px;font-size:15px;font-weight:600}
   .chead span + span{font-size:12px;font-weight:400;opacity:.62}
   .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
@@ -166,6 +166,10 @@
     <div class="seg two" id="styleSeg" style="margin-bottom:4px">
       <button data-s="soft">Soft</button>
       <button data-s="3d">Realistic 3D</button>
+    </div>
+    <div class="seg two" id="modeSeg" style="margin-bottom:4px">
+      <button data-m="bulb">Bulb below</button>
+      <button data-m="classic">Classic</button>
     </div>
     <div class="row"><span>Brightness</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
@@ -291,14 +295,14 @@ const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
 precision highp float;
 uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
-uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans; uniform vec2 uBulb; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
 uniform vec4 uProf; uniform float uProfT;
 float prof(float s){ s=clamp(s,0.,1.); if(uProfT>0.5) return max(uProf.x, sqrt(max(0.,1.-pow(2.*s-1.,2.)))); return s<uProf.y ? uProf.x+(1.-uProf.x)*sin(s/uProf.y*1.5708) : 1.-(1.-uProf.z)*pow((s-uProf.y)/(1.-uProf.y),uProf.w); }
 void main(){
-  vec2 p=gl_FragCoord.xy; float f=0., h=0., gw=0., gh=0., rw=0., sh=0., wf=0., wh=0.; vec2 grad=vec2(0.);
+  vec2 p=gl_FragCoord.xy; float f=0., h=0., gw=0., gh=0., rw=0., sh=0., fs=0., wf=0., wh=0.; vec2 grad=vec2(0.);
   vec2 pd=p-uBulb;
   vec2 pw=uBulb+pd*vec2(0.34,0.6);            // where this spot on the wall looks back into the lamp, from the bulb
   for(int i=0;i<${MAX};i++){ if(i>=uN) break; vec4 b=uB[i]; vec2 d=p-b.xy;
@@ -309,11 +313,12 @@ void main(){
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb;
     // wax shading wax: a blob closer to the bulb shades the parts of the wax just above it
     vec2 bd=b.xy-uBulb; float bl=max(length(bd),1.); vec2 bu=bd/bl; float al=dot(pd,bu)-bl;
-    if(al>b.z*0.55){
+    if(uMode<0.5){ vec2 ds=p-(b.xy-uLdir*0.26*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
+    else if(al>b.z*0.55){
       float lat=length(pd-bu*(al+bl)), wd=b.z*(0.8+0.06*al/b.z);
       sh=max(sh,(1.-smoothstep(wd*0.2,wd*1.3,lat))*smoothstep(b.z*0.55,b.z*1.25,al)*exp(-al/(b.z*4.5))*gwt*smoothstep(0.01,0.04,b.z/uRes.y));
     }
-    if(uLamp>0.5){ vec2 dw=pw-b.xy; float kw=max(0.,1.-dot(dw,dw)/(R2*1.7)); float vw=kw*kw*kw*2.646*gwt; wf+=vw; wh+=vw*hb; }
+    if(uLamp>0.5){ vec2 dw=pw-b.xy; float vw=exp(-dot(dw,dw)/(z2*5.))*gwt*b.z/uRes.y*14.; wf+=vw; wh+=vw*hb; }
   }
   float lf=0.3+1.4*uLight, S=uShadow, T=uTrans;
   float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
@@ -327,12 +332,14 @@ void main(){
   }
   vec3 waxc=mix(uCool,uHot,heat);
   vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25);
-  vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=tb/db;
-  float att=1.25/(1.+pow(db/(uRes.y*0.6),2.));
+  vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=uMode>0.5?tb/db:uLdir;
+  float att=uMode>0.5?1.25/(1.+pow(db/(uRes.y*0.6),2.)):1.;
   // liquid: its gradient, a gentle glow rising from the bulb, and the wax's own glow
   vec3 liq=mix(uLiqBot,uLiqTop,smoothstep(0.,1.,y));
   liq+=bulbc*lf*(0.07*exp(-y*4.)+0.06*exp(-db/(uRes.y*0.3)))*(0.9+0.1*sin(uTime*0.6));
-  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*pow(clamp(gw,0.,1.),2.2)*(0.26+0.16*uBreath)*lf;
+  float gsm=1.-exp(-gw*0.9);    // soft, saturating halo: no plateau, no hard rim
+  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.3+0.16*uBreath)*lf;
+  if(uMode<0.5) liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
   // the wax's shape: outward direction, how close to the edge (rho), how thick
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
   float thick=clamp((f-1.)/2.4,0.,1.);
@@ -344,7 +351,7 @@ void main(){
     // natural wax: rounded, gently textured, lit by the bulb beneath
     vec2 wob=vec2(vnoise(q+vec2(uTime*0.04,0.))-0.5, vnoise(q*1.7-vec2(0.,uTime*0.03))-0.5);
     vec3 n=normalize(vec3(dir*rho*0.94+wob*0.16, sqrt(max(0.,1.-rho*rho*0.9))));
-    vec3 Lv=normalize(vec3(tbn*0.9,0.42));
+    vec3 Lv=uMode>0.5?normalize(vec3(tbn*0.9,0.42)):normalize(vec3(uLdir*0.75,0.65));
     float wr=mix(0.9,0.25,S);                                   // stronger shadows = harder fall-off on the far side
     float wrap=clamp((dot(n,Lv)+wr)/(1.+wr),0.,1.);
     wax=waxc*(mix(0.38,0.13,S)+0.75*wrap*att*lf);
@@ -361,7 +368,7 @@ void main(){
     wax=mix(wax,waxc*1.15+uHot*0.1,clamp(rim*0.28*lf,0.,1.));
     // body shading: the side facing the bulb is lit, the far side falls into shadow
     float lit=0.5+0.5*dot(dir*rho,tbn);
-    wax*=mix(1.,0.42+0.78*lit,S*0.85);
+    wax*=mix(1.,0.42+0.78*lit,S*0.85*uMode);
     wax*=1.-S*0.32*sh;
     rp=p+dir*rho*Rd*0.6*T;
   }
@@ -398,10 +405,9 @@ void main(){
     room+=lampc*exp(-dist/(uGlass.w*1.1))*(0.15+0.06*uBreath)*lf;
     room+=lampc*0.05*lf*exp(-dist/(uGlass.w*4.5));
     // the wall behind: the lamp throws big, soft, drifting wax shapes onto it
-    float wsh=smoothstep(0.25,1.4,wf), wht=clamp(wh/max(wf,1e-4),0.,1.);
+    float wsh=1.-exp(-wf*1.3), wht=clamp(wh/max(wf,1e-4),0.,1.);
     float pool=exp(-dist/(uGlass.w*2.6))*smoothstep(0.,uGlass.w*0.6,dist+uGlass.w*0.2)*lf*smoothstep(uGlass.z+uGlass.w*0.2,uGlass.z-uGlass.w*0.6,pw.y);
-    vec3 wallc=mix(lampc*0.55, mix(uCool,uHot,wht)*(0.3+0.45*T), wsh*(0.35+0.5*S));
-    room+=wallc*pool*0.34;
+    room+=lampc*pool*0.08+mix(uCool,uHot,wht)*wsh*pool*(0.2+0.18*T);
     col=mix(room,col,inside);
   }
   vec2 vq=p/uRes-0.5; col*=1.-(0.45+0.4*S)*dot(vq,vq);
@@ -416,7 +422,7 @@ gl.linkProgram(prog); gl.useProgram(prog);
 const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
 const appEl = $("#app");
@@ -436,7 +442,7 @@ function screenSize() {
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
 let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
-let ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), trans = store.get("trans", 0.4);
+let ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), trans = store.get("trans", 0.4), lightMode = store.get("lightMode", "bulb");
 let particles = store.get("particles", 0.5), light = store.get("light", 0.5), shadow = store.get("shadow", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
@@ -1153,7 +1159,7 @@ function render() {
   // the bulb: under the bottom of the screen, or at the base of the lamp glass
   if (lampGeo) gl.uniform2f(U.uBulb, lampGeo.cx * S, (H - lampGeo.gB) * S - (lampGeo.gB - lampGeo.gT) * S * 0.06);
   else gl.uniform2f(U.uBulb, W * 0.5 * S, -H * 0.12 * S);
-  gl.uniform1f(U.uTrans, trans);
+  gl.uniform1f(U.uTrans, trans); gl.uniform1f(U.uMode, lightMode === "bulb" ? 1 : 0); gl.uniform2f(U.uLdir, -0.368, 0.93);
   gl.uniform1f(U.uLight, light); gl.uniform1f(U.uShadow, shadow); gl.uniform1f(U.uStyle, style === "3d" ? 1 : 0);
   let nb = 0;
   for (const b of bubbles) {
@@ -1290,7 +1296,7 @@ const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
 const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
   particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume,
-  ambVol, popVol, toneVol, toneStyle, trans, frame: frameId });
+  ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renamePreset(i, el) {
   const p = presets[i], old = p.name;
@@ -1345,8 +1351,8 @@ function applyPreset(p) {
   amount = v.amount ?? amount; absorb = v.absorb ?? absorb; stirSens = v.stir ?? stirSens; bubbleAmt = v.bubbles ?? bubbleAmt;
   particles = v.particles ?? particles; style = v.style ?? style; light = v.light ?? light; shadow = v.shadow ?? shadow;
   breathId = v.breath ?? breathId; cueOn = v.cue ?? cueOn; volume = v.vol ?? volume;
-  ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; trans = v.trans ?? trans;
-  for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, trans })) store.set(k, val); audio.level();
+  ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; trans = v.trans ?? trans; lightMode = v.lightMode ?? lightMode;
+  for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, trans, lightMode })) store.set(k, val); audio.level();
   for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, breath: breathId, cue: cueOn, vol: volume })) store.set(k, val);
   breathT = 0; breathPhase = -1;
   applyTheme(v.theme || themeId);
@@ -1362,6 +1368,7 @@ function syncUI() {
   renderFrames();
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
+  [...$("#modeSeg").children].forEach(b => b.classList.toggle("on", b.dataset.m === lightMode));
   $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
   $("#ambVol").value = ambVol; $("#popVol").value = popVol; $("#toneVol").value = toneVol; $("#trans").value = trans;
   [...$("#toneSeg").children].forEach(b => b.classList.toggle("on", b.dataset.t === toneStyle));
@@ -1468,6 +1475,7 @@ $("#swCue").onclick = () => {
 [...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
+[...$("#modeSeg").children].forEach(b => b.onclick = () => { lightMode = b.dataset.m; store.set("lightMode", lightMode); syncUI(); });
 document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
   if (activePreset) { activePreset = null; store.set("activePreset", null); renderPresets(); }
 }));
@@ -1495,7 +1503,7 @@ document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 // Press Hot / Cool / Liquid: a gradient blooms open under your finger, starting where the current colour
 // sits. Slide around to pick (the lava updates live) and lift to set it.
-const pk = $("#picker"), pcv = $("#pickCv"), pring = $("#pickRing"), pbub = $("#pickBubble"), PW = 300, PH = 230;
+const pk = $("#picker"), pcv = $("#pickCv"), pring = $("#pickRing"), pbub = $("#pickBubble"), PW = 300, PH = 64;
 const hsl2hex = (h, s, l) => { const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return rgb2hex([f(0), f(8), f(4)]); };
 const hex2hsl = hex => { const [r, g2, b] = hex2rgb(hex), mx = Math.max(r, g2, b), mn = Math.min(r, g2, b), l = (mx + mn) / 2, d = mx - mn;
   let h = 0; if (d) h = mx === r ? ((g2 - b) / d + 6) % 6 : mx === g2 ? (b - r) / d + 2 : (r - g2) / d + 4; return [h * 60, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l]; };
@@ -1516,10 +1524,10 @@ function liveCustom() {
 }
 function movePick(x, y) {
   // the panel sits mid-screen; the finger steers the ring from wherever it is (trackpad-style, no jumps)
-  const rx = clamp(picking.px + (x - picking.x0) * 1.3, 0, PW - 0.01), ry = clamp(picking.py + (y - picking.y0) * 1.3, 0, PH);
+  const rx = clamp(picking.px + (x - picking.x0) * 1.25, 0, PW - 0.01), ry = clamp(picking.py + (y - picking.y0) * PH / 170, 0, PH);
   const hex = hsl2hex(rx / PW * 360, 0.92, pickL(ry));
   pring.style.left = rx + "px"; pring.style.top = ry + "px"; pring.style.background = hex;
-  pbub.style.left = (picking.left + rx) + "px"; pbub.style.top = Math.max(40, picking.top + ry - 70) + "px"; pbub.style.background = hex;
+  pbub.style.left = (picking.left + rx) + "px"; pbub.style.top = (picking.top - 34) + "px"; pbub.style.background = hex;
   custom[picking.k] = hex; picking.btn.querySelector("i").style.background = hex;
   liveCustom();
 }
@@ -1527,7 +1535,7 @@ function startPick(btn, e) {
   if (!pcv.dataset.drawn) { drawPicker(); pcv.dataset.drawn = 1; }
   const k = btn.dataset.k, [h, , l] = hex2hsl(custom[k]);
   const px = h / 360 * PW, py = clamp((0.95 - l) / 0.91, 0, 1) * PH;
-  const left = Math.round((W - PW) / 2), top = Math.round(clamp(H * 0.42 - PH / 2, 60, H - PH - 8));
+  const left = Math.round((W - PW) / 2), top = Math.round(controls.getBoundingClientRect().top - PH - 14);
   pk.style.left = left + "px"; pk.style.top = top + "px";
   pk.style.transformOrigin = `${e.clientX - left}px ${e.clientY - top}px`;
   picking = { k, left, top, id: e.pointerId, btn, x0: e.clientX, y0: e.clientY, px, py };
@@ -1679,7 +1687,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v15 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v16 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
