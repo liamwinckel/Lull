@@ -98,9 +98,12 @@
   .tile.on{box-shadow:inset 0 0 0 2px #fff,0 0 18px rgba(255,255,255,.15)}
   .tile i{position:absolute;border-radius:50%}
   .frame img{display:block;pointer-events:none}
-  .tile .tl{position:absolute;pointer-events:none;right:4px;top:8px;width:44px;height:74px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
+  .tile .tl{position:absolute;pointer-events:none;left:50%;top:5px;width:43px;height:72px;margin-left:-21px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
   .tile b{position:absolute;left:9px;right:6px;bottom:8px;font-size:12.5px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 6px rgba(0,0,0,.7)}
   .tile small{position:absolute;left:9px;bottom:26px;font-size:9.5px;opacity:.7;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+  /* lamp view: tiles show each preset's lamp; full screen: just its wax */
+  body.lampview .tile:not(.nolamp) i{display:none}
+  body:not(.lampview) .tile .tl{display:none}
   .tile.add{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
   .tile.add span{font-size:28px;font-weight:300;opacity:.8;line-height:1}
   .tile.add b{position:static;font-weight:500;opacity:.8}
@@ -1640,7 +1643,7 @@ const FEATURED = [
   { name: "Smoke & mirrors", s: { theme: "smoke", frame: "minimal", lampMods: { mat: "gunmetal" }, style: "3d", lightMode: "classic", light: 0.45, shadow: 0.85, trans: 0.5, amount: 0.5, absorb: 0.3, bubbles: 0.15, particles: 0.15 } },
 ];
 // thumbnails are drawn as self-contained pictures (an <img> of the SVG), so iOS Safari always paints them in full
-const thumbImg = (inner, w, h, cls) => `<img ${cls ? `class="${cls}" ` : ""}width="${w}" height="${h}" alt="" aria-hidden="true" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w * 3}" height="${h * 3}">${inner}</svg>`)}">`;
+const thumbImg = (inner, w, h, cls) => `<img onerror="var t=this.closest('.tile');if(t)t.classList.add('nolamp');this.remove()" ${cls ? `class="${cls}" ` : ""}width="${w}" height="${h}" alt="" aria-hidden="true" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w * 3}" height="${h * 3}">${inner}</svg>`)}">`;
 function presetLook(v) {
   const t = v.theme === "custom" && v.custom ? { hot: v.custom.hot, cool: v.custom.cool, liqBot: v.custom.liq, liqTop: rgb2hex(hex2rgb(v.custom.liq).map(x => x * 0.25)) } : themeById(v.theme || themeId);
   return { t, F: frameWith(v.frame || frameId, v.lampMods) };
@@ -1654,7 +1657,7 @@ function presetTile(p, i) {
   const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;opacity:${op};background:${v.style === "3d" ? `radial-gradient(circle at 40% 35%,${t.hot},${t.cool} 75%)` : `radial-gradient(circle,${t.hot},${t.cool})`};box-shadow:0 0 ${10 + 14 * (v.light ?? 0.5)}px ${t.hot}66"></i>`;
   const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
   const lamp = thumbImg(frameSVG(F, geo, { id: "p", thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot }), 44, 74, "tl");
-  b.innerHTML = blob(10, 16, 22) + blob(30, 40, 13) + blob(14, 54, 9) + lamp +
+  b.innerHTML = blob(14, 14, 26) + blob(52, 22, 16) + blob(34, 44, 12) + blob(72, 48, 9) + lamp +
     `<small>${MAT_NAMES[F.mat] || ""} · ${v.style === "3d" ? "3D" : "Soft"}</small><b>${p.name}</b>`;
   return b;
 }
@@ -1706,6 +1709,7 @@ function frameView() {
     tf = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(4)})`;
   }
   canvas.style.transform = tf; svg.style.transform = tf; canvas.style.borderRadius = "";
+  toast.style.right = sheetOpen && !sheet.classList.contains("picking") ? (pw + 20) + "px" : "";
   // the shifted room fades softly into the dark instead of ending in a hard edge
   const mk = tf ? "linear-gradient(to bottom,transparent,#000 7%,#000 93%,transparent),linear-gradient(to right,transparent,#000 24%,#000 76%,transparent)" : "";
   canvas.style.webkitMaskImage = mk; canvas.style.maskImage = mk;
@@ -2107,7 +2111,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v27 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v28 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
