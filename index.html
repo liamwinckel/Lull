@@ -65,6 +65,22 @@
   .frame{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;width:62px;padding:6px 0 5px;border-radius:14px;border:1.5px solid transparent;background:rgba(255,255,255,.05);color:#fff;font-size:10.5px}
   .frame.on{border-color:#fff;background:rgba(255,255,255,.1)}
   .frame span{opacity:.8}
+  .frame.del{border-color:#ff6b6b}
+  .frame.mine{background:rgba(255,255,255,.09)}
+  .mats{display:flex;gap:10px;flex-wrap:wrap}
+  .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;width:46px}
+  .mats i{width:30px;height:30px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+  .mats button.on i{border-color:#fff}
+  .mats span{opacity:.75}
+  .liqs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 2px;-webkit-overflow-scrolling:touch}
+  .liqs button{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+  .liqs button.on{border-color:#fff}
+  .feat{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+  .feat button{position:relative;height:64px;border:none;border-radius:16px;overflow:hidden;padding:0;text-align:left;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+  .feat button.on{box-shadow:inset 0 0 0 2px #fff}
+  .feat b{position:absolute;left:10px;bottom:8px;font-size:13px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .feat small{position:absolute;left:10px;top:8px;font-size:10px;opacity:.7;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .feat i{position:absolute;border-radius:50%}
   .cbtn{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;background:rgba(255,255,255,.06);border:none;border-radius:12px;padding:8px 10px;color:#fff;touch-action:none}
   .cbtn i{width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.35);flex:none}
   #sheet.picking{opacity:0;pointer-events:none}
@@ -187,6 +203,8 @@
   <section class="card" data-card="look">
     <div class="chead"><span>Colours</span><span id="themeName"></span></div>
     <div class="chips" id="chips"></div>
+    <div class="chead" style="margin:10px 0 4px;font-size:13px"><span>Liquid</span></div>
+    <div class="liqs" id="liqs"></div>
     <div class="custom">
       <button class="cbtn" data-k="hot"><i></i>Hot</button>
       <button class="cbtn" data-k="cool"><i></i>Cool</button>
@@ -225,6 +243,12 @@
       <button data-v="lamp">Lamp</button>
     </div>
     <div class="frames" id="frameList"></div>
+    <div class="chead" style="margin-top:12px"><span>Make it yours</span><span>hold a saved lamp to delete</span></div>
+    <div class="mats" id="matOpts"></div>
+    <div class="seg" id="capOpts" style="margin-top:8px"></div>
+    <div class="seg" id="baseOpts" style="margin-top:6px"></div>
+    <div class="row"><span>Glass width</span><input type="range" id="lampW" min="0" max="1" step="0.01"></div>
+    <form class="pform show" id="lampForm"><input id="lampName" maxlength="20" placeholder="Name this lamp" aria-label="Lamp name"><button type="submit">Save lamp</button></form>
   </section>
 
   <section class="card" data-card="calm">
@@ -245,6 +269,8 @@
 
   <section class="card" data-card="presets">
     <div class="chead"><span>Presets</span><span>save your setup</span></div>
+    <div class="feat" id="featList"></div>
+    <div class="chead" style="font-size:13px;margin-bottom:8px"><span>Yours</span></div>
     <div class="presets" id="presetList"></div>
     <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form>
   </section>
@@ -284,8 +310,14 @@ const THEMES = [
   { id: "midnight", name: "Midnight", hot: "#d6a8ff", cool: "#6a5cff", liqBot: "#17123a", liqTop: "#03020a" },
   { id: "forest",   name: "Forest",   hot: "#d4f55f", cool: "#14b38a", liqBot: "#0c2e20", liqTop: "#020a06" },
   { id: "rose",     name: "Rose",     hot: "#ffd1dc", cool: "#ff6f9c", liqBot: "#3a1424", liqTop: "#0c0308" },
-  { id: "mono",     name: "Mono",     hot: "#f2f2f2", cool: "#8a9099", liqBot: "#202226", liqTop: "#050506" }
+  { id: "mono",     name: "Mono",     hot: "#f2f2f2", cool: "#8a9099", liqBot: "#202226", liqTop: "#050506" },
+  { id: "neon",     name: "Neon",     hot: "#ff5fd8", cool: "#7a3cff", liqBot: "#160838", liqTop: "#03010c" },
+  { id: "gold",     name: "Gold",     hot: "#ffe08a", cool: "#d98a1c", liqBot: "#2a1604", liqTop: "#080401" },
+  { id: "jelly",    name: "Jelly",    hot: "#9ff7c4", cool: "#3fc6ff", liqBot: "#0a3446", liqTop: "#01090f" },
+  { id: "ember",    name: "Ember",    hot: "#ff9a3d", cool: "#b3130a", liqBot: "#1e0402", liqTop: "#050101" },
+  { id: "citrus",   name: "Citrus",   hot: "#fff36b", cool: "#ff8a1f", liqBot: "#0d2b3a", liqTop: "#020a10" }
 ];
+const LIQUIDS = ["#4a0a12", "#06284a", "#0c2e20", "#17123a", "#3d0d3a", "#2a1604", "#0a3446", "#202226", "#3a2a10", "#0e3a36", "#2b0f4a", "#000000"];
 const hex2rgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255); };
 const rgb2hex = c => "#" + c.map(v => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, "0")).join("");
 let custom = store.get("custom", { hot: "#ffc24a", cool: "#ff4d1a", liq: "#4a0a12" });
@@ -305,7 +337,7 @@ function applyTheme(id, instant) {
   tgt = { hot: hex2rgb(t.hot), cool: hex2rgb(t.cool), liqBot: hex2rgb(t.liqBot), liqTop: hex2rgb(t.liqTop) };
   if (instant || !cur.hot) cur = JSON.parse(JSON.stringify(tgt));
   document.querySelector('meta[name=theme-color]').setAttribute("content", t.liqTop);
-  renderChips(); drawLamp(); renderFrames();
+  renderChips(); drawLamp(); renderFrames(); if (typeof renderLiqs === "function") renderLiqs();
 }
 
 /* ---------- settings ---------- */
@@ -337,7 +369,10 @@ float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
 uniform vec4 uProf; uniform float uProfT;
-float prof(float s){ s=clamp(s,0.,1.); if(uProfT>0.5) return max(uProf.x, sqrt(max(0.,1.-pow(2.*s-1.,2.)))); return s<uProf.y ? uProf.x+(1.-uProf.x)*sin(s/uProf.y*1.5708) : 1.-(1.-uProf.z)*pow((s-uProf.y)/(1.-uProf.y),uProf.w); }
+float prof(float s){ s=clamp(s,0.,1.);
+  if(uProfT>2.5){ float a=abs(2.*s-1.); if(a<1.-uProf.y) return 1.; float t=(a-(1.-uProf.y))/uProf.y; return max(uProf.x,sqrt(max(0.,1.-t*t))); }
+  if(uProfT>1.5) return 1.-(1.-uProf.x)*pow(sin(s*3.14159),uProf.w);
+  if(uProfT>0.5) return max(uProf.x, sqrt(max(0.,1.-pow(2.*s-1.,2.)))); return s<uProf.y ? uProf.x+(1.-uProf.x)*sin(s/uProf.y*1.5708) : 1.-(1.-uProf.z)*pow((s-uProf.y)/(1.-uProf.y),uProf.w); }
 void main(){
   vec2 p=gl_FragCoord.xy; float f=0., h=0., gw=0., gh=0., rw=0., sh=0., fs=0., wf=0., wh=0.; vec2 grad=vec2(0.);
   vec2 pd=p-uBulb;
@@ -381,13 +416,14 @@ void main(){
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
   float thick=clamp((f-1.)/2.4,0.,1.);
   vec2 dir=gl2>1e-6?-grad/gl2:vec2(0.);
-  float rho=pow(1.-clamp(((f-1.)/max(gl2,1e-5))/max(Rd,1.),0.,1.),1.3);
+  float hs=Rd*1.1*exp(-max(f-1.,0.)*0.9)*gl2*0.9;      // slope of a smooth dome built from the wax field
+  float rho=hs/sqrt(1.+hs*hs);
   vec2 q=p/uRes.y*7.;
   vec3 wax; vec2 rp;
   if(uStyle>0.5){
     // natural wax: rounded, gently textured, lit by the bulb beneath
     vec2 wob=vec2(vnoise(q+vec2(uTime*0.04,0.))-0.5, vnoise(q*1.7-vec2(0.,uTime*0.03))-0.5);
-    vec3 n=normalize(vec3(dir*rho*0.94+wob*0.16, sqrt(max(0.,1.-rho*rho*0.9))));
+    vec3 n=normalize(vec3(dir*rho+wob*0.1*(1.-rho), sqrt(max(0.,1.-rho*rho))+0.02));
     vec3 Lv=uMode>0.5?normalize(vec3(tbn*0.9,0.42)):normalize(vec3(uLdir*0.75,0.65));
     float wr=mix(0.9,0.25,S);                                   // stronger shadows = harder fall-off on the far side
     float wrap=clamp((dot(n,Lv)+wr)/(1.+wr),0.,1.);
@@ -494,19 +530,32 @@ const FRAMES = [
   { id: "globe", name: "Globe", mat: "copper", prof: [0.4, 0.5, 0.4, 1, 1], cap: 0.07, glass: 0.6, wk: 1.45, capShape: "knob", baseShape: "pedestal" },
   { id: "minimal", name: "Minimal", mat: "ceramic", prof: [0.92, 0.15, 0.82, 2.2, 0], cap: 0.045, glass: 0.73, wk: 0.92, capShape: "dome", baseShape: "block" },
   { id: "neon", name: "Neon", mat: "neon", prof: [0.8, 0.28, 0.55, 1.3, 0], cap: 0.15, glass: 0.56, wk: 1, capShape: "cone", baseShape: "flare" },
+  { id: "hourglass", name: "Hourglass", mat: "rose", prof: [0.64, 0, 0, 1.4, 2], cap: 0.1, glass: 0.62, wk: 1.08, capShape: "dome", baseShape: "pedestal" },
+  { id: "capsule", name: "Capsule", mat: "ceramic", prof: [0.5, 0.2, 0, 0, 3], cap: 0.07, glass: 0.68, wk: 0.92, capShape: "dome", baseShape: "block" },
+  { id: "tower", name: "Tower", mat: "chrome", prof: [0.9, 0.2, 0.72, 1.6, 0], cap: 0.11, glass: 0.66, wk: 0.74, capShape: "spike", baseShape: "flare" },
+  { id: "bottle", name: "Bottle", mat: "copper", prof: [0.96, 0.55, 0.36, 2.4, 0], cap: 0.12, glass: 0.6, wk: 1.15, capShape: "knob", baseShape: "pedestal" },
+  { id: "atomic", name: "Atomic", mat: "black", prof: [0.6, 0.22, 0.42, 1.0, 0], cap: 0.15, glass: 0.56, wk: 1.2, capShape: "cone", baseShape: "fins" },
 ];
+let myLamps = store.get("myLamps", []), lampMods = store.get("lampMods", {});
+const MAT_NAMES = { chrome: "Chrome", black: "Matte black", brass: "Brass", copper: "Copper", rose: "Rose gold", ceramic: "White", neon: "Neon" };
+const wkMul = v => v < 0.5 ? 0.75 + v * 0.5 : 1 + (v - 0.5) * 0.6;
 let frameId = store.get("frame", "classic");
-const frameOf = id => FRAMES.find(f => f.id === id) || FRAMES[0];
+const frameOf = id => FRAMES.find(f => f.id === id) || myLamps.find(f => f.id === id) || FRAMES[0];
+// the lamp on screen: the chosen frame plus any tweaks (finish, cap, base, width)
+function curFrame() { const F = frameOf(frameId), m = lampMods || {};
+  return { ...F, mat: m.mat || F.mat, capShape: m.capShape || F.capShape, baseShape: m.baseShape || F.baseShape, wk: F.wk * (m.w != null ? wkMul(m.w) : 1) }; }
 const profWith = (P, s) => {
   s = clamp(s, 0, 1);
   if (P[4] === 1) return Math.max(P[0], Math.sqrt(Math.max(0, 1 - Math.pow(2 * s - 1, 2))));
+  if (P[4] === 2) return 1 - (1 - P[0]) * Math.pow(Math.sin(s * Math.PI), P[3]);
+  if (P[4] === 3) { const a = Math.abs(2 * s - 1); if (a < 1 - P[1]) return 1; const t = (a - (1 - P[1])) / P[1]; return Math.max(P[0], Math.sqrt(Math.max(0, 1 - t * t))); }
   return s < P[1] ? P[0] + (1 - P[0]) * Math.sin(s / P[1] * Math.PI / 2) : 1 - (1 - P[2]) * Math.pow((s - P[1]) / (1 - P[1]), P[3]);
 };
-const prof = s => profWith(frameOf(frameId).prof, s);
+const prof = s => profWith(curFrame().prof, s);
 
 function computeTank() {
   if (view === "lamp") {
-    const F = frameOf(frameId);
+    const F = curFrame();
     const L = Math.min(H * 0.8, W * 2.4), top = (H - L) / 2;
     const gT = top + F.cap * L, gB = gT + F.glass * L;
     const hwMax = Math.min(W * (F.wk > 1.2 ? 0.38 : 0.27), F.glass * L * 0.21 * F.wk);
@@ -524,9 +573,12 @@ const MATS = {
   brass: [["#1c1204", 0], ["#5a3f0f", .16], ["#e9c46a", .3], ["#9a7224", .4], ["#3b2a08", .68], ["#7a5a1c", .86], ["#1c1204", 1]],
   copper: [["#1e0c06", 0], ["#6e3218", .16], ["#f0a070", .3], ["#a2542c", .4], ["#41190b", .68], ["#8a4424", .86], ["#1e0c06", 1]],
   ceramic: [["#8a8a86", 0], ["#c9c9c4", .16], ["#ffffff", .32], ["#e6e6e1", .45], ["#b4b4ae", .7], ["#d2d2cc", .86], ["#8a8a86", 1]],
+  black: [["#050506", 0], ["#141416", .16], ["#3a3a40", .3], ["#1c1c20", .4], ["#09090a", .68], ["#18181b", .86], ["#050506", 1]],
+  rose: [["#22100e", 0], ["#7a4440", .16], ["#f6c2b4", .3], ["#b87a6e", .4], ["#4a2420", .68], ["#94605a", .86], ["#22100e", 1]],
 };
 const RIMS = { chrome: ["#1a1a1e", "#b8b8c2", "#55555e", "#2a2a30"], brass: ["#2a1d07", "#ffe39a", "#a07a2a", "#4a3410"],
-  copper: ["#2a1208", "#ffc09a", "#a0522d", "#4a2010"], ceramic: ["#9a9a94", "#ffffff", "#d8d8d2", "#a8a8a2"] };
+  copper: ["#2a1208", "#ffc09a", "#a0522d", "#4a2010"], ceramic: ["#9a9a94", "#ffffff", "#d8d8d2", "#a8a8a2"],
+  black: ["#050506", "#55555c", "#202024", "#0c0c0e"], rose: ["#2a1412", "#ffd8cc", "#b87a6e", "#4a2420"] };
 
 // Builds the cap + base (and, for thumbnails, the glass) for any frame at any size.
 function frameSVG(F, geo, opt = {}) {
@@ -595,22 +647,34 @@ function drawLamp() {
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.style.display = lampGeo ? "" : "none";
   if (!lampGeo) { svg.innerHTML = ""; return; }
-  svg.innerHTML = frameSVG(frameOf(frameId), lampGeo, { hot: themeById(themeId).hot });
+  svg.innerHTML = frameSVG(curFrame(), lampGeo, { hot: themeById(themeId).hot });
 }
 function renderFrames() {
   const box = $("#frameList"); if (!box) return; box.innerHTML = "";
   const th = themeById(themeId);
-  for (const F of FRAMES) {
-    const b = document.createElement("button"); b.className = "frame" + (F.id === frameId && viewSel === "lamp" ? " on" : "");
+  for (const F0 of [...FRAMES, ...myLamps]) {
+    const F = F0.id === frameId ? curFrame() : F0, mine = F0.id.startsWith("my");
+    const b = document.createElement("button"); b.className = "frame" + (F.id === frameId && viewSel === "lamp" ? " on" : "") + (mine ? " mine" : "");
     b.setAttribute("aria-label", F.name + " lamp");
     const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
-    b.innerHTML = `<svg viewBox="0 0 44 74" width="44" height="74" aria-hidden="true">${frameSVG(F, geo, { id: "t" + F.id, thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot })}</svg><span>${F.name}</span>`;
-    b.onclick = () => setFrame(F.id);
+    b.innerHTML = `<svg viewBox="0 0 44 74" width="44" height="74" aria-hidden="true">${frameSVG(F, geo, { id: "t" + F.id, thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot })}</svg><span>${F0.name}</span>`;
+    b.onclick = () => { if (b.dataset.held) { delete b.dataset.held; return; } setFrame(F.id); };
+    if (mine) {   // hold one of your lamps to delete it
+      let ht = 0; b.addEventListener("pointerdown", () => { ht = setTimeout(() => { b.dataset.held = 1;
+        b.querySelector("span").textContent = "Delete?"; b.classList.add("del");
+        b.onclick = () => { myLamps = myLamps.filter(x => x.id !== F0.id); store.set("myLamps", myLamps); if (frameId === F0.id) setFrame("classic"); renderFrames(); }; }, 600); });
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => clearTimeout(ht));
+      b.addEventListener("contextmenu", e => e.preventDefault());
+    }
     box.appendChild(b);
   }
 }
-function setFrame(id) {
+function setFrame(id, mods) {
   frameId = id; store.set("frame", id);
+  lampMods = mods || {}; store.set("lampMods", lampMods); syncLampOpts();
+  reshapeLamp();
+}
+function reshapeLamp() {
   if (viewSel !== "lamp") { setView("lamp"); renderFrames(); return; }
   canvas.classList.add("fade"); svg.classList.add("fade");
   setTimeout(() => {
@@ -914,13 +978,8 @@ function step1(dt) {
         // touch-to-merge, set by the Merging slider
         {
           const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), key = a.seed + c.seed;
-          const reach = (a.r + c.r) * bs * (0.95 + 1.6 * Math.pow(absorb, 2.5));   // eager settings reach out for nearby wax
+          const reach = (a.r + c.r) * bs * 0.92;   // Merging only decides how willing they are once they touch: no pull, no push
           if (d < reach && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
-            if (d > (a.r + c.r) * bs * 0.9) {   // not touching yet: drift toward each other
-              const f = 110 * g * Math.pow(absorb, 2) * dt, ux0 = dx / (d || 1), uy0 = dy / (d || 1);
-              a.vx += ux0 * f; a.vy += uy0 * f; c.vx -= ux0 * f; c.vy -= uy0 * f;
-              continue;
-            }
             const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
             // touching and on the way to merging: they gradually move as one (no tug, no sudden lurch)
             const ma0 = a.r * a.r, mc0 = c.r * c.r, mvx = (a.vx * ma0 + c.vx * mc0) / (ma0 + mc0), mvy = (a.vy * ma0 + c.vy * mc0) / (ma0 + mc0), kv = relax(1.2, dt);
@@ -935,14 +994,13 @@ function step1(dt) {
         }
         if (regrouping) continue;
         // similar sizes only flow through each other when merging is eager; otherwise they press apart
-        if (Math.min(a.tr, c.tr) > Math.max(a.tr, c.tr) * 0.62 && absorb > 0.6) continue;
         // they visibly touch (a neck forms) before pushing; no force at all while apart
-        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * (0.8 + 0.17 * (1 - absorb));
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.88;
         if (d >= rr) continue;
         // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
         const ready = clamp((touchTime.get(a.seed + c.seed) || 0) / Math.max(mergeAfter(), 0.001), 0, 1);
-        const firm = (1 - absorb) * (1 - ready), over = (rr - d) / rr;
+        const firm = 0.6 * (1 - ready), over = (rr - d) / rr;   // the same soft contact at every setting
         const f = over * over * 900 * g * firm * dt;
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
         a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
@@ -1044,18 +1102,14 @@ function particleStep(dt, bs) {
     q.touched = false;
     for (const b of big) {
       const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 0.95 + q.r * 0.7;
-      const reach = R + (b.r + q.r) * 1.2 * Math.pow(absorb, 2);   // eager settings draw nearby droplets in
-      if (d >= reach) continue;
+      if (d >= R) continue;
       const nx = dx / d, ny = dy / d;
-      if (d >= R) {   // close but not touching: drift in (gently, scaled by the slider)
-        const f = 70 * g * absorb * absorb * dt; q.vx -= nx * f; q.vy -= ny * f; continue;
-      }
       if ((count > target || q.excess) && (q.age > 0.5 || q.excess)) { q.dying = b; count--; break; }   // an extra merges with the blob it touches
       q.touchT = (q.touchT || 0) + dt; q.touched = true;
       const need = mergeAfter() * 0.5;
       if (q.age > 0.6 && q.touchT >= need) { q.dying = b; count--; break; }   // Merging slider applies to droplets too
       // not yet: a soft push that fades as it gets closer to merging, and its motion settles onto the blob's
-      const ready = clamp(q.touchT / Math.max(need, 0.001), 0, 1), firm = (1 - absorb) * (1 - ready);
+      const ready = clamp(q.touchT / Math.max(need, 0.001), 0, 1), firm = 0.6 * (1 - ready);
       const over = (R - d) / R, f = over * 600 * g * firm * dt;
       q.vx += nx * f; q.vy += ny * f;
       const kv = relax(2, dt); q.vx += (b.vx - q.vx) * kv * ready; q.vy += (b.vy - q.vy) * kv * ready;
@@ -1193,7 +1247,7 @@ function render() {
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
-  { const P = frameOf(frameId).prof; gl.uniform4f(U.uProf, P[0], P[1], P[2], P[3]); gl.uniform1f(U.uProfT, P[4]); }
+  { const P = curFrame().prof; gl.uniform4f(U.uProf, P[0], P[1], P[2], P[3]); gl.uniform1f(U.uProfT, P[4]); }
   // the bulb: under the bottom of the screen, or at the base of the lamp glass
   if (lampGeo) gl.uniform2f(U.uBulb, lampGeo.cx * S, (H - lampGeo.gB) * S - (lampGeo.gB - lampGeo.gT) * S * 0.06);
   else gl.uniform2f(U.uBulb, W * 0.5 * S, -H * 0.12 * S);
@@ -1334,7 +1388,7 @@ const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
 const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
   particles, style, light, shadow, breath: breathId, cue: cueOn, sound: soundOn, vol: volume,
-  ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId });
+  ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId, lampMods: { ...lampMods } });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renamePreset(i, el) {
   const p = presets[i], old = p.name;
@@ -1357,6 +1411,7 @@ function renamePreset(i, el) {
   setTimeout(() => { inp.focus(); inp.select(); }, 30);
 }
 function renderPresets() {
+  renderFeatured();
   const box = $("#presetList"); box.innerHTML = "";
   presets.forEach((p, i) => {
     const el = document.createElement("div"); el.className = "preset" + (p.name === activePreset ? " on" : "");
@@ -1394,16 +1449,20 @@ function applyPreset(p) {
   for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, breath: breathId, cue: cueOn, vol: volume })) store.set(k, val);
   breathT = 0; breathPhase = -1;
   applyTheme(v.theme || themeId);
-  if (v.frame && v.frame !== frameId) { if ((v.view || viewSel) === "lamp") setFrame(v.frame); else { frameId = v.frame; store.set("frame", frameId); } }
+  const nm = v.lampMods || {}, modsDiffer = JSON.stringify(nm) !== JSON.stringify(lampMods || {});
+  if (v.frame && (v.frame !== frameId || modsDiffer)) {
+    if ((v.view || viewSel) === "lamp" && viewSel === "lamp") setFrame(v.frame, nm);
+    else { frameId = v.frame; store.set("frame", frameId); lampMods = nm; store.set("lampMods", nm); syncLampOpts(); }
+  }
   if (v.view && v.view !== viewSel) setView(v.view); else { applyAmountNow(); }
   applyBubblesNow(); applyParticlesNow();
   setSound(v.sound ?? soundOn);
   activePreset = p.name; store.set("activePreset", p.name);
-  renderPresets(); syncUI(); showToast(p.name);
+  renderPresets(); renderFeatured(); syncUI(); showToast(p.name);
 }
 
 function syncUI() {
-  renderFrames();
+  renderFrames(); syncLampOpts();
   queueMicrotask(() => BARS.forEach(f => f()));
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
@@ -1432,6 +1491,70 @@ function renderChips() {
     box.appendChild(b);
   });
   const tn = $("#themeName"); if (tn) tn.textContent = themeById(themeId).name;
+}
+function renderLiqs() {
+  const box = $("#liqs"); if (!box) return; box.innerHTML = "";
+  const curLiq = themeById(themeId).liqBot.toLowerCase();
+  LIQUIDS.forEach(c => {
+    const b = document.createElement("button"); b.style.background = `linear-gradient(to top,${c},${rgb2hex(hex2rgb(c).map(v => v * 0.25))})`;
+    b.className = c.toLowerCase() === curLiq ? "on" : ""; b.setAttribute("aria-label", "Liquid colour");
+    b.onclick = () => { const t = themeById(themeId); custom = { hot: t.hot, cool: t.cool, liq: c }; store.set("custom", custom); applyTheme("custom"); syncUI(); };
+    box.appendChild(b);
+  });
+}
+const CAPS = [["cone", "Cone"], ["spike", "Spike"], ["dome", "Dome"], ["knob", "Knob"]], BASES = [["flare", "Flare"], ["fins", "Fins"], ["pedestal", "Pedestal"], ["block", "Block"]];
+function syncLampOpts() {
+  const F = curFrame(), mb = $("#matOpts"); if (!mb) return;
+  mb.innerHTML = "";
+  Object.keys(MAT_NAMES).forEach(m => {
+    const b = document.createElement("button"); b.className = m === F.mat ? "on" : "";
+    const st = MATS[m]; b.innerHTML = `<i style="background:${m === "neon" ? "radial-gradient(circle,#000 45%," + themeById(themeId).hot + " 60%,#000 75%)" : "linear-gradient(135deg," + st[1][0] + "," + st[2][0] + "," + st[4][0] + ")"}"></i><span>${MAT_NAMES[m]}</span>`;
+    b.onclick = () => modLamp({ mat: m }); mb.appendChild(b);
+  });
+  const segs = (box, list, key) => { box.innerHTML = ""; list.forEach(([v, n]) => { const b = document.createElement("button"); b.textContent = n; b.className = F[key] === v ? "on" : ""; b.onclick = () => modLamp({ [key]: v }); box.appendChild(b); }); };
+  segs($("#capOpts"), CAPS, "capShape"); segs($("#baseOpts"), BASES, "baseShape");
+  $("#lampW").value = lampMods.w != null ? lampMods.w : 0.5;
+}
+function modLamp(m) {
+  lampMods = { ...lampMods, ...m }; store.set("lampMods", lampMods);
+  syncLampOpts(); renderFrames();
+  if ("w" in m) reshapeLamp(); else drawLamp();
+}
+$("#lampW").addEventListener("change", e => modLamp({ w: +e.target.value }));
+$("#lampForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = ($("#lampName").value || "").trim() || "My lamp " + (myLamps.length + 1);
+  const F = curFrame(), L = { ...F, id: "my" + Date.now().toString(36), name };
+  myLamps.push(L); store.set("myLamps", myLamps);
+  $("#lampName").value = ""; $("#lampName").blur();
+  setFrame(L.id); showToast("Saved “" + name + "”");
+});
+// curated starting points: each one a full look
+const FEATURED = [
+  { name: "Classic '70s", s: { theme: "classic", frame: "classic", lampMods: {}, style: "soft", lightMode: "bulb", light: 0.5, shadow: 0.45, trans: 0.3, amount: 0.5, absorb: 0.35, bubbles: 0.3, particles: 0.3, view: "lamp" } },
+  { name: "Deep ocean", s: { theme: "ocean", frame: "globe", lampMods: { mat: "chrome" }, style: "3d", lightMode: "bulb", light: 0.45, shadow: 0.55, trans: 0.65, amount: 0.55, absorb: 0.5, bubbles: 0.65, particles: 0.2, view: "lamp" } },
+  { name: "Neon nights", s: { theme: "neon", frame: "neon", lampMods: {}, style: "soft", lightMode: "bulb", light: 0.8, shadow: 0.2, trans: 0.55, amount: 0.45, absorb: 0.6, bubbles: 0.2, particles: 0.5, view: "lamp" } },
+  { name: "Molten gold", s: { theme: "gold", frame: "brass", lampMods: {}, style: "3d", lightMode: "classic", light: 0.6, shadow: 0.7, trans: 0.12, amount: 0.65, absorb: 0.3, bubbles: 0.15, particles: 0.25, view: "lamp" } },
+  { name: "Glass jelly", s: { theme: "jelly", frame: "capsule", lampMods: {}, style: "3d", lightMode: "bulb", light: 0.55, shadow: 0.35, trans: 0.95, amount: 0.5, absorb: 0.55, bubbles: 0.55, particles: 0.15, view: "lamp" } },
+  { name: "Ember", s: { theme: "ember", frame: "rocket", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.4, shadow: 0.85, trans: 0.25, amount: 0.55, absorb: 0.4, bubbles: 0.2, particles: 0.6, view: "lamp" } },
+  { name: "Lilac dream", s: { theme: "midnight", frame: "hourglass", lampMods: {}, style: "soft", lightMode: "bulb", light: 0.55, shadow: 0.4, trans: 0.5, amount: 0.5, absorb: 0.75, bubbles: 0.35, particles: 0.2, breath: "calm", view: "lamp" } },
+  { name: "Moss garden", s: { theme: "forest", frame: "bottle", lampMods: {}, style: "3d", lightMode: "bulb", light: 0.5, shadow: 0.6, trans: 0.4, amount: 0.55, absorb: 0.3, bubbles: 0.25, particles: 0.7, view: "lamp" } },
+  { name: "Gallery", s: { theme: "mono", frame: "minimal", lampMods: {}, style: "3d", lightMode: "classic", light: 0.55, shadow: 0.75, trans: 0.2, amount: 0.45, absorb: 0.25, bubbles: 0.1, particles: 0.1, view: "lamp" } },
+  { name: "Bubblegum", s: { theme: "rose", frame: "capsule", lampMods: { mat: "rose" }, style: "soft", lightMode: "bulb", light: 0.65, shadow: 0.3, trans: 0.45, amount: 0.5, absorb: 0.55, bubbles: 0.7, particles: 0.4, view: "lamp" } },
+  { name: "Atomic citrus", s: { theme: "citrus", frame: "atomic", lampMods: {}, style: "soft", lightMode: "classic", light: 0.6, shadow: 0.5, trans: 0.3, amount: 0.6, absorb: 0.45, bubbles: 0.3, particles: 0.35, view: "lamp" } },
+  { name: "Night sky", s: { theme: "midnight", frame: "tower", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.35, shadow: 0.6, trans: 0.7, amount: 0.4, absorb: 0.5, bubbles: 0.4, particles: 0.9, view: "full" } },
+];
+function renderFeatured() {
+  const box = $("#featList"); if (!box) return; box.innerHTML = "";
+  FEATURED.forEach(p => {
+    const t = themeById(p.s.theme), b = document.createElement("button");
+    b.className = activePreset === p.name ? "on" : "";
+    b.style.background = `radial-gradient(120% 90% at 50% 120%,${t.hot}33,transparent 60%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
+    const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;background:radial-gradient(circle at 40% 35%,${t.hot},${t.cool});opacity:${1 - p.s.trans * 0.5}"></i>`;
+    b.innerHTML = blob(64, 18, 26) + blob(80, 52, 16) + blob(52, 58, 12) + `<small>${MAT_NAMES[(p.s.lampMods && p.s.lampMods.mat) || frameOf(p.s.frame).mat]} · ${frameOf(p.s.frame).name}</small><b>${p.name}</b>`;
+    b.onclick = () => applyPreset(p);
+    box.appendChild(b);
+  });
 }
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
@@ -1562,11 +1685,11 @@ document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   const end = e => {
     if (!g || e.pointerId !== g.id) return;
     const was = g; g = null; row.classList.remove("drag");
-    if (was.live) { off(); return; }
+    if (was.live) { off(); inp.dispatchEvent(new Event("change")); return; }
     if (e.type !== "pointerup" || performance.now() - was.t0 > 400) return;
     // a tap: glide smoothly to that spot
     const r = row.getBoundingClientRect(), target = clamp((e.clientX - r.left) / r.width, 0, 1), from = +inp.value, t0 = performance.now();
-    const step = t => { const k = Math.min(1, (t - t0) / 320), ez = 1 - Math.pow(1 - k, 3); put(from + (target - from) * ez); if (k < 1) glide = requestAnimationFrame(step); };
+    const step = t => { const k = Math.min(1, (t - t0) / 320), ez = 1 - Math.pow(1 - k, 3); put(from + (target - from) * ez); if (k < 1) glide = requestAnimationFrame(step); else inp.dispatchEvent(new Event("change")); };
     glide = requestAnimationFrame(step);
   };
   row.addEventListener("pointerup", end); row.addEventListener("pointercancel", end);
@@ -1627,6 +1750,7 @@ function drawFx(b, t) {
     case "toneVol": {
       c.strokeStyle = `rgba(255,255,255,${0.2 + 0.4 * v})`; c.lineWidth = 1.5; c.beginPath();
       for (let x = 0; x <= fw; x += 2) { const env = Math.exp(-((x / 60 + t * 0.7) % 1) * 3); const y = H / 2 + Math.sin(x * 0.35) * env * (2 + 12 * v); x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); break; }
+    case "lampW": { const w = 6 + v * 18; c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fw - 20 - w, H / 2); c.lineTo(fw - 20 + w * 0.2, H / 2); c.stroke(); break; }
     default: { // volume, ambience: a soft moving sound wave
       const amb = b.id === "ambVol";
       c.fillStyle = `rgba(255,255,255,${0.14 + 0.3 * v})`;
@@ -1852,7 +1976,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v19 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v20 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
