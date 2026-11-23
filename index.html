@@ -1357,7 +1357,7 @@ function frame(now) {
 
 /* ---------- audio ---------- */
 const audio = (() => {
-  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus;
+  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, fb, hideT = 0;
   const SCALE = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
   function init() {
     if (AC) return;
@@ -1367,7 +1367,7 @@ const audio = (() => {
     ambBus = AC.createGain(); ambBus.connect(master);
     popBus = AC.createGain(); toneBus = AC.createGain();
     const delay = AC.createDelay(1); delay.delayTime.value = 0.37;
-    const fb = AC.createGain(); fb.gain.value = 0.42;
+    fb = AC.createGain(); fb.gain.value = 0.42;
     const dl = AC.createBiquadFilter(); dl.type = "lowpass"; dl.frequency.value = 1600;
     fx = AC.createGain(); fx.gain.value = 0.55;
     fx.connect(delay); delay.connect(dl); dl.connect(fb); fb.connect(delay); dl.connect(master);
@@ -1406,7 +1406,23 @@ const audio = (() => {
   }
   return {
     init, level, resume,
-    suspend() { if (AC) AC.suspend().catch(() => {}); },
+    // leaving the app: fade everything to silence and empty the echo first, then pause audio.
+    // Cutting it off mid-sound is what made iOS play a glitchy tone as the app closed.
+    suspend() {
+      if (!AC) return;
+      try {
+        const n = AC.currentTime;
+        master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(master.gain.value, n); master.gain.linearRampToValueAtTime(0, n + 0.06);
+        fb.gain.cancelScheduledValues(n); fb.gain.setValueAtTime(0, n);
+      } catch (e) {}
+      clearTimeout(hideT); hideT = setTimeout(() => { if (document.hidden) AC.suspend().catch(() => {}); }, 140);
+    },
+    wake() {
+      if (!AC) return; clearTimeout(hideT);
+      const n = AC.currentTime;
+      try { fb.gain.setValueAtTime(0.42, n); master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(0, n); } catch (e) {}
+      resume(); level();
+    },
     note(yFrac) {
       if (!AC || !soundOn || toneVol <= 0.001) return;
       const idx = clamp(Math.floor((1 - yFrac) * SCALE.length), 0, SCALE.length - 1), f = SCALE[idx];
@@ -2125,7 +2141,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v30 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v31 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -2137,9 +2153,10 @@ $("#start").addEventListener("click", () => {
   keepAwake(); wake(); heal();
   if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
 });
+window.addEventListener("pagehide", () => audio.suspend());
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) audio.suspend();
-  else { last = performance.now(); if (started && soundOn) audio.resume(); keepAwake(); setTimeout(heal, 200); }
+  else { last = performance.now(); if (started && soundOn) audio.wake(); keepAwake(); setTimeout(heal, 200); }
 });
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", () => setTimeout(resize, 300));
