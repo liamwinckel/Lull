@@ -50,11 +50,13 @@
     max-height:62vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 16px;
     background:rgba(16,12,14,.72);backdrop-filter:blur(22px) saturate(1.3);-webkit-backdrop-filter:blur(22px) saturate(1.3);
     border-radius:22px;border:1px solid rgba(255,255,255,.08);
-    opacity:0;pointer-events:none;transform:translate(-50%,14px) scale(.98);transform-origin:50% 100%;
-    transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s ease,background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
+    opacity:0;pointer-events:none;transform:translate(-50%,26px) scale(.94);transform-origin:50% 100%;
+    transition:transform .55s cubic-bezier(.16,1,.3,1),opacity .4s ease,background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
   #sheet.open{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
   #sheet .card{display:none}
   #sheet .card.show{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  #sheet.open .card.show > *{animation:rise .6s cubic-bezier(.16,1,.3,1) backwards;animation-delay:calc(var(--i,0) * 45ms + 60ms)}
   #sheet .card > *,#sheet .grab{transition:opacity .35s}
   #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:transparent}
   #sheet.peek .card > *:not(.active),#sheet.peek .grab{opacity:.07}
@@ -85,7 +87,10 @@
   .lbar .lname{text-shadow:0 1px 6px rgba(0,0,0,.45)}
   .lbar .lval{font-variant-numeric:tabular-nums;font-size:13px;opacity:.75;text-shadow:0 1px 6px rgba(0,0,0,.45)}
   .lbar.drag .lfill{transition:none}
-  #sheet.peek .row.lbar.active{background:rgba(14,14,18,.55)}
+  .lfill{overflow:hidden}
+  .lfill canvas{position:absolute;left:0;top:0;height:100%;pointer-events:none}
+  #sheet.peek .row.lbar.active{background:rgba(255,255,255,.06);border-radius:23px;padding:0 16px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+  .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
   #vpick.show{pointer-events:auto}
@@ -1452,7 +1457,7 @@ function openSheet(name) {
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
-  sheet.scrollTop = 0; sheet.classList.add("open");
+  sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
 }
 function closeSheet(fromY) {
@@ -1530,12 +1535,14 @@ let peekTimer = 0;
 for (const ev of ["pointerup", "touchend", "touchcancel", "pointercancel"]) document.addEventListener(ev, () => { if (sheet.classList.contains("peek")) { clearTimeout(peekTimer); peekTimer = setTimeout(clearPeek, 450); } }, true);
 // Lava bars: every range becomes a fat pill of liquid. Drag anywhere along it (it moves relative to your
 // finger, never jumping), or tap a spot to glide there.
-const BARS = [];
+const BARS = [], BAR_FX = [];
+document.querySelectorAll("#sheet .card").forEach(c => [...c.children].forEach((el, i) => el.style.setProperty("--i", i)));
 document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   const row = inp.closest(".row"); row.classList.add("lbar");
   const name = row.querySelector("span"); name.className = "lname";
   const fill = document.createElement("div"); fill.className = "lfill"; row.prepend(fill);
   const val = document.createElement("span"); val.className = "lval"; row.appendChild(val);
+  const fcv = document.createElement("canvas"); fill.appendChild(fcv); BAR_FX.push({ id: inp.id, row, fill, cv: fcv, inp, seed: Math.random() * 100 });
   const show = () => { const v = +inp.value; row.style.setProperty("--v", v); val.textContent = Math.round(v * 100); };
   const put = v => { v = clamp(v, 0, 1); if (Math.abs(v - +inp.value) < 0.001) return; inp.value = v; inp.dispatchEvent(new Event("input", { bubbles: true })); show(); };
   BARS.push(show);
@@ -1565,6 +1572,70 @@ document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   row.addEventListener("pointerup", end); row.addEventListener("pointercancel", end);
   show();
 });
+// each bar shows what it does: brightness glows, shadows darken, translucency turns see-through,
+// bubbles rise, particles drift, merging pulls pairs together, stirring swirls, sound bars move
+const rgbaC = (c, a) => `rgba(${c[0] * 255 | 0},${c[1] * 255 | 0},${c[2] * 255 | 0},${a})`;
+const lite = c => c.map(x => Math.min(1, x * 0.6 + 0.4));
+let fxLast = 0;
+function drawFx(b, t) {
+  const W0 = b.row.clientWidth, H0 = b.row.clientHeight; if (!W0) return;
+  const d = Math.min(devicePixelRatio || 1, 2);
+  if (b.cv.width !== Math.round(W0 * d)) { b.cv.width = Math.round(W0 * d); b.cv.height = Math.round(H0 * d); b.cv.style.width = W0 + "px"; }
+  const c = b.cv.getContext("2d"), v = +b.inp.value, fw = v * W0, H = H0, sd = b.seed, hot = cur.hot || [1, .5, .3], cool = cur.cool || [1, .7, .3];
+  c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, W0, H);
+  const R = (i, k) => { const x = Math.sin(i * 127.1 + sd * 311.7 + k * 74.7) * 43758.5453; return x - Math.floor(x); };
+  const circ = (x, y, r, fill) => { c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fillStyle = fill; c.fill(); };
+  switch (b.id) {
+    case "light": {
+      b.fill.style.filter = `brightness(${0.55 + 0.85 * v}) saturate(${0.75 + 0.5 * v})`;
+      const x = ((t * 0.12 + sd) % 1.5 - 0.25) * Math.max(fw, 60), g = c.createRadialGradient(x, H * 0.4, 0, x, H * 0.4, 46);
+      g.addColorStop(0, `rgba(255,250,235,${0.12 + 0.45 * v})`); g.addColorStop(1, "rgba(255,250,235,0)"); c.fillStyle = g; c.fillRect(0, 0, W0, H); break; }
+    case "shadow": {
+      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(0,0,0,${0.05 + 0.6 * v})`); g.addColorStop(0.55, `rgba(0,0,0,${0.25 * v})`); g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g; c.fillRect(0, 0, W0, H);
+      for (let i = 0; i < 4; i++) { const x = (R(i, 1) * 1.2 - 0.1) * fw + Math.sin(t * 0.4 + i) * 8; circ(x, H * 0.3, 10 + R(i, 2) * 10, `rgba(0,0,0,${0.3 * v})`); } break; }
+    case "trans": {
+      b.fill.style.opacity = 1 - 0.8 * v;
+      c.strokeStyle = `rgba(255,255,255,${0.12 + 0.3 * v})`; c.lineWidth = 1.2;
+      for (let k = 0; k < 3; k++) { c.beginPath(); for (let x = 0; x <= fw; x += 4) { const y = H * (0.3 + k * 0.2) + Math.sin(x * 0.05 + t * 0.9 + k * 2) * 3 * (0.4 + v); x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); } break; }
+    case "amt": {
+      const n = 1 + Math.round(v * 11);
+      for (let i = 0; i < n; i++) { const x = (i + 0.5) / n * fw, y = H * 0.5 + Math.sin(t * 0.5 + i * 1.7 + sd) * H * 0.18; circ(x, y, 5 + R(i, 3) * 7, rgbaC(lite(hot), 0.55)); } break; }
+    case "absorb": {
+      const n = Math.max(1, Math.floor(fw / 70)), gap = (1 - v) * 22 + 2 + Math.sin(t * 0.8) * 2;
+      for (let i = 0; i < n; i++) { const cx = (i + 0.5) / n * fw, y = H / 2, col = rgbaC(lite(hot), 0.6);
+        circ(cx - gap / 2 - 4, y, 9, col); circ(cx + gap / 2 + 4, y, 9, col);
+        if (gap < 12) { c.fillStyle = col; c.fillRect(cx - gap / 2 - 4, y - (12 - gap) * 0.6, gap + 8, (12 - gap) * 1.2); } } break; }
+    case "stirk": {
+      for (let k = 0; k < 2; k++) { c.strokeStyle = `rgba(255,255,255,${0.2 + 0.25 * v})`; c.lineWidth = 2; c.beginPath();
+        for (let x = 0; x <= fw; x += 3) { const y = H / 2 + Math.sin(x * 0.045 - t * (0.6 + 4 * v) + k * 3) * (3 + 11 * v) * (k ? 0.6 : 1); x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); } break; }
+    case "bub": {
+      const n = Math.round(v * 22);
+      for (let i = 0; i < n; i++) { const sp = 0.25 + R(i, 4) * 0.35, y = H + 6 - ((t * sp + R(i, 5)) % 1) * (H + 12), x = R(i, 6) * fw;
+        c.beginPath(); c.arc(x, y, 1.6 + R(i, 7) * 2.6, 0, 6.2832); c.strokeStyle = "rgba(255,255,255,.7)"; c.lineWidth = 1; c.stroke(); } break; }
+    case "part": {
+      const n = Math.round(v * 45);
+      for (let i = 0; i < n; i++) { const x = ((R(i, 8) + t * 0.01 * (R(i, 9) - 0.5)) % 1 + 1) % 1 * fw, y = H * (0.15 + 0.7 * R(i, 10)) + Math.sin(t * 0.7 + i) * 3;
+        circ(x, y, 0.9 + R(i, 11) * 1.4, rgbaC(lite(cool), 0.85)); } break; }
+    case "popVol": {
+      for (let i = 0; i < 5; i++) { const ph = (t * 0.5 + R(i, 12)) % 1, x = R(i, 13) * fw;
+        c.beginPath(); c.arc(x, H / 2, 2 + ph * 14 * (0.3 + v), 0, 6.2832); c.strokeStyle = `rgba(255,255,255,${(1 - ph) * (0.15 + 0.6 * v)})`; c.lineWidth = 1.5; c.stroke(); } break; }
+    case "toneVol": {
+      c.strokeStyle = `rgba(255,255,255,${0.2 + 0.4 * v})`; c.lineWidth = 1.5; c.beginPath();
+      for (let x = 0; x <= fw; x += 2) { const env = Math.exp(-((x / 60 + t * 0.7) % 1) * 3); const y = H / 2 + Math.sin(x * 0.35) * env * (2 + 12 * v); x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); break; }
+    default: { // volume, ambience: a soft moving sound wave
+      const amb = b.id === "ambVol";
+      c.fillStyle = `rgba(255,255,255,${0.14 + 0.3 * v})`;
+      for (let x = 6; x < fw - 4; x += amb ? 3 : 6) { const a = amb ? 0.5 + 0.5 * Math.sin(x * 0.04 + t * 0.8) : Math.abs(Math.sin(x * 0.13 + t * 3) * Math.sin(x * 0.031 - t)); const h = (0.12 + 0.75 * v) * H * 0.7 * a + 2;
+        c.fillRect(x, H / 2 - h / 2, amb ? 2 : 3, h); } }
+  }
+}
+function fxLoop(t) {
+  if (sheetOpen) { if (t - fxLast > 30) { fxLast = t; BAR_FX.forEach(b => { if (b.row.offsetParent) drawFx(b, t / 1000); }); } requestAnimationFrame(fxLoop); }
+  else fxOn = false;
+}
+let fxOn = false;
+function startFx() { if (!fxOn) { fxOn = true; requestAnimationFrame(fxLoop); } }
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 // Press Hot / Cool / Liquid: a gradient blooms open under your finger, starting where the current colour
 // sits. Slide around to pick (the lava updates live) and lift to set it.
@@ -1617,7 +1688,34 @@ function closePick() {
 $("#vpanel").addEventListener("pointerdown", e => e.stopPropagation());
 vp.querySelectorAll(".vtabs button").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); vSelect(b.dataset.k); }));
 vp.addEventListener("pointerdown", e => { if (e.target === vp) { e.preventDefault(); e.stopPropagation(); closePick(); } });
-document.querySelectorAll(".cbtn").forEach(btn => btn.addEventListener("click", e => { e.stopPropagation(); openPick(btn.dataset.k); }));
+document.querySelectorAll(".cbtn").forEach(btn => {
+  let hd = null;
+  btn.addEventListener("pointerdown", e => {
+    e.preventDefault(); e.stopPropagation(); try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+    hd = { id: e.pointerId, x0: e.clientX, y0: e.clientY, live: false, t: setTimeout(() => go(), 260) };
+    const go = () => { if (!hd || hd.live) return; hd.live = true; openPick(btn.dataset.k); hd.h0 = vh; hd.l0 = vl; hd.x0 = hd.lx ?? hd.x0; hd.y0 = hd.ly ?? hd.y0; };
+    hd.go = go;
+  });
+  btn.addEventListener("pointermove", e => {
+    if (!hd || e.pointerId !== hd.id) return;
+    hd.lx = e.clientX; hd.ly = e.clientY;
+    if (!hd.live) { if (Math.hypot(e.clientX - hd.x0, e.clientY - hd.y0) > 8) hd.go(); return; }
+    e.preventDefault();
+    // one strip-height of finger travel sweeps the whole rainbow; sideways goes lighter (right) or darker (left)
+    const sh = vhue.getBoundingClientRect().height || 400;
+    vh = ((hd.h0 + (e.clientY - hd.y0) / sh * 360) % 360 + 360) % 360;
+    vl = clamp(hd.l0 + (e.clientX - hd.x0) / 260, 0.04, 0.95);
+    vSet();
+  });
+  const up = e => {
+    if (!hd || e.pointerId !== hd.id) return;
+    clearTimeout(hd.t); const was = hd; hd = null;
+    if (!was.live) openPick(btn.dataset.k);          // a quick tap: open the strip and leave it open
+    else if (Math.hypot((was.lx ?? was.x0) - was.x0, (was.ly ?? was.y0) - was.y0) > 8) closePick();  // held and slid: lifting sets it
+  };
+  btn.addEventListener("pointerup", up); btn.addEventListener("pointercancel", up);
+  btn.addEventListener("contextmenu", e => e.preventDefault());
+});
 
 
 
@@ -1751,7 +1849,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v17 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v18 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
