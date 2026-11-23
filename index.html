@@ -65,15 +65,43 @@
   .frame span{opacity:.8}
   .cbtn{flex:1;display:flex;align-items:center;gap:8px;font-size:12px;background:rgba(255,255,255,.06);border:none;border-radius:12px;padding:8px 10px;color:#fff;touch-action:none}
   .cbtn i{width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.35);flex:none}
-  #picker{position:absolute;left:0;top:0;width:300px;height:64px;border-radius:20px;overflow:hidden;opacity:0;transform:scale(.25);pointer-events:none;
-    transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .25s ease;box-shadow:0 14px 44px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.22);z-index:20}
-  #picker.show{opacity:1;transform:scale(1)}
-  #pickCv{width:100%;height:100%;display:block}
-  #pickRing{position:absolute;width:22px;height:22px;margin:-11px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.4)}
-  #pickBubble{position:absolute;width:40px;height:40px;margin:-20px;border-radius:50%;border:3px solid #fff;box-shadow:0 6px 20px rgba(0,0,0,.5);
-    opacity:0;transform:scale(.4);transition:opacity .2s,transform .28s cubic-bezier(.2,.8,.2,1);pointer-events:none;z-index:21}
-  #pickBubble.show{opacity:1;transform:scale(1)}
-  #sheet.picking{opacity:0}
+  #sheet.picking{opacity:0;pointer-events:none}
+  /* themed menu: colours follow the lava */
+  :root{--hot:#ff6a3d;--cool:#ffb347;--liq:#2a0d12}
+  #sheet{background:radial-gradient(130% 70% at 50% 115%,color-mix(in srgb,var(--hot) 20%,transparent),transparent 70%),rgba(14,11,13,.74) !important;
+    border:1px solid color-mix(in srgb,var(--hot) 22%,rgba(255,255,255,.08)) !important;box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+  #sheet.peek{background:transparent !important;border-color:transparent !important;box-shadow:none}
+  .ctl.on{background:color-mix(in srgb,var(--hot) 30%,rgba(255,255,255,.1));box-shadow:0 0 18px color-mix(in srgb,var(--hot) 40%,transparent)}
+  .seg button.on{background:linear-gradient(135deg,color-mix(in srgb,var(--cool) 45%,rgba(255,255,255,.1)),color-mix(in srgb,var(--hot) 45%,rgba(255,255,255,.1)));box-shadow:0 2px 12px color-mix(in srgb,var(--hot) 30%,transparent)}
+  .switch.on{background:linear-gradient(90deg,var(--cool),var(--hot))}
+  .chead > span:first-child{letter-spacing:.04em}
+  /* lava bars: a pill of liquid you push left or right, anywhere along it */
+  .row.lbar{position:relative;height:46px;padding:0 16px;margin:8px 0;border-radius:23px;overflow:hidden;background:rgba(255,255,255,.06);
+    border:none !important;touch-action:pan-y;user-select:none;-webkit-user-select:none;font-size:14.5px;isolation:isolate}
+  .row.lbar input{display:none}
+  .lfill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--v) * 100%);border-radius:23px;z-index:-1;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--cool) 70%,transparent),color-mix(in srgb,var(--hot) 85%,transparent));
+    box-shadow:inset -3px 0 0 rgba(255,255,255,.55),inset 0 1px 0 rgba(255,255,255,.28),inset 0 -8px 16px rgba(0,0,0,.18),0 0 22px color-mix(in srgb,var(--hot) 35%,transparent);transition:width .08s linear}
+  .lbar .lname{text-shadow:0 1px 6px rgba(0,0,0,.45)}
+  .lbar .lval{font-variant-numeric:tabular-nums;font-size:13px;opacity:.75;text-shadow:0 1px 6px rgba(0,0,0,.45)}
+  .lbar.drag .lfill{transition:none}
+  #sheet.peek .row.lbar.active{background:rgba(14,14,18,.55)}
+  /* colour strip: floats up the right side; touch anywhere on it */
+  #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
+  #vpick.show{pointer-events:auto}
+  #vpanel{position:absolute;right:14px;top:calc(env(safe-area-inset-top) + 64px);bottom:calc(env(safe-area-inset-bottom) + 96px);width:92px;
+    display:flex;flex-direction:column;gap:10px;padding:10px;box-sizing:border-box;border-radius:30px;
+    background:rgba(14,11,13,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);
+    opacity:0;transform:translateX(30px);transition:opacity .3s ease,transform .38s cubic-bezier(.2,.8,.2,1)}
+  #vpick.show #vpanel{opacity:1;transform:none}
+  .vtabs{display:flex;justify-content:space-between}
+  .vtabs button{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.25);padding:0;transition:transform .25s,border-color .25s}
+  .vtabs button.on{border-color:#fff;transform:scale(1.25)}
+  .vname{text-align:center;font-size:11px;opacity:.7;margin-top:-2px}
+  .vstrips{flex:1;display:flex;gap:8px;min-height:0}
+  .vstrip{flex:1;position:relative;border-radius:18px;touch-action:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+  .vstrip b{position:absolute;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #fff;box-sizing:border-box;
+    box-shadow:0 2px 10px rgba(0,0,0,.5);pointer-events:none}
   .chead{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 12px;font-size:15px;font-weight:600}
   .chead span + span{font-size:12px;font-weight:400;opacity:.62}
   .handle{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto;}
@@ -217,8 +245,11 @@
   </section>
 </div>
 
-<div id="picker" aria-hidden="true"><canvas id="pickCv"></canvas><div id="pickRing"></div></div>
-<div id="pickBubble" aria-hidden="true"></div>
+<div id="vpick" aria-hidden="true"><div id="vpanel">
+  <div class="vtabs"><button data-k="hot" aria-label="Hot"></button><button data-k="cool" aria-label="Cool"></button><button data-k="liq" aria-label="Liquid"></button></div>
+  <div class="vname" id="vname">Hot</div>
+  <div class="vstrips"><div class="vstrip" id="vhue"><b></b></div><div class="vstrip" id="vlum"><b></b></div></div>
+</div></div>
 
 <div id="start">
   <div class="t">LULL</div>
@@ -262,6 +293,7 @@ function themeById(id) {
 }
 let themeId = store.get("theme", "classic");
 let tgt = {}, cur = {};
+let cssTick = 0;
 function applyTheme(id, instant) {
   themeId = id; store.set("theme", id);
   const t = themeById(id);
@@ -1152,6 +1184,7 @@ function render() {
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
   gl.uniform4fv(U.uB, arr); gl.uniform1i(U.uN, n);
   gl.uniform3fv(U.uHot, cur.hot); gl.uniform3fv(U.uCool, cur.cool);
+  if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
@@ -1366,6 +1399,7 @@ function applyPreset(p) {
 
 function syncUI() {
   renderFrames();
+  queueMicrotask(() => BARS.forEach(f => f()));
   [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
   [...$("#modeSeg").children].forEach(b => b.classList.toggle("on", b.dataset.m === lightMode));
@@ -1413,6 +1447,7 @@ let openCard = null;
 function clearPeek() { clearTimeout(peekTimer); sheet.classList.remove("peek"); sheet.querySelectorAll(".row.active").forEach(r => r.classList.remove("active")); }
 function openSheet(name) {
   clearPeek();
+  { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   openCard = name; sheetOpen = true;
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
@@ -1437,7 +1472,7 @@ let drag = null;
 sheet.addEventListener("touchstart", e => {
   if (!sheetOpen || e.touches.length !== 1) return;
   const onGrab = e.target.closest(".grab");
-  if (e.target.closest(".cbtn")) return;
+  if (e.target.closest(".cbtn") || e.target.closest(".lbar")) return;
   if (!onGrab && (sheet.scrollTop > 0 || e.target.closest("input"))) return;
   drag = { y0: e.touches[0].clientY, t0: performance.now(), dy: 0, active: false, grab: !!onGrab };
 }, { passive: true });
@@ -1493,69 +1528,98 @@ $("#shadow").oninput = e => { shadow = +e.target.value; store.set("shadow", shad
 // while dragging any slider, fade the menu so the tank shows through
 let peekTimer = 0;
 for (const ev of ["pointerup", "touchend", "touchcancel", "pointercancel"]) document.addEventListener(ev, () => { if (sheet.classList.contains("peek")) { clearTimeout(peekTimer); peekTimer = setTimeout(clearPeek, 450); } }, true);
+// Lava bars: every range becomes a fat pill of liquid. Drag anywhere along it (it moves relative to your
+// finger, never jumping), or tap a spot to glide there.
+const BARS = [];
 document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
-  const row = inp.closest(".row");
+  const row = inp.closest(".row"); row.classList.add("lbar");
+  const name = row.querySelector("span"); name.className = "lname";
+  const fill = document.createElement("div"); fill.className = "lfill"; row.prepend(fill);
+  const val = document.createElement("span"); val.className = "lval"; row.appendChild(val);
+  const show = () => { const v = +inp.value; row.style.setProperty("--v", v); val.textContent = Math.round(v * 100); };
+  const put = v => { v = clamp(v, 0, 1); if (Math.abs(v - +inp.value) < 0.001) return; inp.value = v; inp.dispatchEvent(new Event("input", { bubbles: true })); show(); };
+  BARS.push(show);
+  let g = null, glide = 0;
   const on = () => { clearTimeout(peekTimer); sheet.classList.add("peek"); row.classList.add("active"); };
   const off = () => { clearTimeout(peekTimer); peekTimer = setTimeout(() => { sheet.classList.remove("peek"); row.classList.remove("active"); }, 450); };
-  inp.addEventListener("pointerdown", on); inp.addEventListener("touchstart", on, { passive: true });
-  inp.addEventListener("pointerup", off); inp.addEventListener("touchend", off); inp.addEventListener("pointercancel", off); inp.addEventListener("touchcancel", off); inp.addEventListener("change", off); inp.addEventListener("blur", off);
+  row.addEventListener("pointerdown", e => {
+    cancelAnimationFrame(glide);
+    g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, v0: +inp.value, w: row.getBoundingClientRect().width, t0: performance.now(), live: false };
+  });
+  row.addEventListener("pointermove", e => {
+    if (!g || e.pointerId !== g.id) return;
+    const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    if (!g.live) { if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) { g.live = true; g.x0 = e.clientX; try { row.setPointerCapture(g.id); } catch (_) {} row.classList.add("drag"); on(); } else return; }
+    e.preventDefault(); put(g.v0 + (e.clientX - g.x0) / (g.w * 0.9));
+  });
+  const end = e => {
+    if (!g || e.pointerId !== g.id) return;
+    const was = g; g = null; row.classList.remove("drag");
+    if (was.live) { off(); return; }
+    if (e.type !== "pointerup" || performance.now() - was.t0 > 400) return;
+    // a tap: glide smoothly to that spot
+    const r = row.getBoundingClientRect(), target = clamp((e.clientX - r.left) / r.width, 0, 1), from = +inp.value, t0 = performance.now();
+    const step = t => { const k = Math.min(1, (t - t0) / 320), ez = 1 - Math.pow(1 - k, 3); put(from + (target - from) * ez); if (k < 1) glide = requestAnimationFrame(step); };
+    glide = requestAnimationFrame(step);
+  };
+  row.addEventListener("pointerup", end); row.addEventListener("pointercancel", end);
+  show();
 });
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 // Press Hot / Cool / Liquid: a gradient blooms open under your finger, starting where the current colour
 // sits. Slide around to pick (the lava updates live) and lift to set it.
-const pk = $("#picker"), pcv = $("#pickCv"), pring = $("#pickRing"), pbub = $("#pickBubble"), PW = 300, PH = 64;
 const hsl2hex = (h, s, l) => { const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return rgb2hex([f(0), f(8), f(4)]); };
 const hex2hsl = hex => { const [r, g2, b] = hex2rgb(hex), mx = Math.max(r, g2, b), mn = Math.min(r, g2, b), l = (mx + mn) / 2, d = mx - mn;
   let h = 0; if (d) h = mx === r ? ((g2 - b) / d + 6) % 6 : mx === g2 ? (b - r) / d + 2 : (r - g2) / d + 4; return [h * 60, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l]; };
-const pickL = y => 0.95 - (y / PH) * 0.91;
-function drawPicker() {
-  const d = Math.min(window.devicePixelRatio || 1, 2); pcv.width = PW * d; pcv.height = PH * d;
-  const c = pcv.getContext("2d");
-  for (let x = 0; x < pcv.width; x++) {
-    const h = x / pcv.width * 360, gr = c.createLinearGradient(0, 0, 0, pcv.height);
-    gr.addColorStop(0, `hsl(${h},92%,95%)`); gr.addColorStop(0.5, `hsl(${h},92%,50%)`); gr.addColorStop(1, `hsl(${h},92%,4%)`);
-    c.fillStyle = gr; c.fillRect(x, 0, 1, pcv.height);
-  }
-}
-let picking = null;
 function liveCustom() {
   const t = themeById("custom");
   tgt = { hot: hex2rgb(t.hot), cool: hex2rgb(t.cool), liqBot: hex2rgb(t.liqBot), liqTop: hex2rgb(t.liqTop) };
 }
-function movePick(x, y) {
-  // the panel sits mid-screen; the finger steers the ring from wherever it is (trackpad-style, no jumps)
-  const rx = clamp(picking.px + (x - picking.x0) * 1.25, 0, PW - 0.01), ry = clamp(picking.py + (y - picking.y0) * PH / 170, 0, PH);
-  const hex = hsl2hex(rx / PW * 360, 0.92, pickL(ry));
-  pring.style.left = rx + "px"; pring.style.top = ry + "px"; pring.style.background = hex;
-  pbub.style.left = (picking.left + rx) + "px"; pbub.style.top = (picking.top - 34) + "px"; pbub.style.background = hex;
-  custom[picking.k] = hex; picking.btn.querySelector("i").style.background = hex;
-  liveCustom();
+// Tap Hot / Cool / Liquid: a colour strip floats up the right side. Touch anywhere on it - colour on the
+// left strip, light-to-dark on the right - and the lava follows live. Tap outside to finish.
+const vp = $("#vpick"), vhue = $("#vhue"), vlum = $("#vlum");
+const NAMES = { hot: "Hot", cool: "Cool", liq: "Liquid" };
+let vk = null, vh = 0, vl = 0.5;
+const HUE_BG = "linear-gradient(to bottom," + Array.from({ length: 13 }, (_, i) => `hsl(${i * 30},92%,52%)`).join(",") + ")";
+vhue.style.background = HUE_BG;
+function vDraw() {
+  const hex = hsl2hex(vh, 0.92, vl);
+  vlum.style.background = `linear-gradient(to bottom,hsl(${vh},92%,95%),hsl(${vh},92%,50%),hsl(${vh},92%,4%))`;
+  const hb = vhue.querySelector("b"), lb = vlum.querySelector("b");
+  hb.style.top = (vh / 360 * 100) + "%"; hb.style.background = `hsl(${vh},92%,52%)`;
+  lb.style.top = ((0.95 - vl) / 0.91 * 100) + "%"; lb.style.background = hex;
+  vp.querySelectorAll(".vtabs button").forEach(b => { b.classList.toggle("on", b.dataset.k === vk); b.style.background = custom[b.dataset.k]; });
+  $("#vname").textContent = NAMES[vk];
 }
-function startPick(btn, e) {
-  if (!pcv.dataset.drawn) { drawPicker(); pcv.dataset.drawn = 1; }
-  const k = btn.dataset.k, [h, , l] = hex2hsl(custom[k]);
-  const px = h / 360 * PW, py = clamp((0.95 - l) / 0.91, 0, 1) * PH;
-  const left = Math.round((W - PW) / 2), top = Math.round(controls.getBoundingClientRect().top - PH - 14);
-  pk.style.left = left + "px"; pk.style.top = top + "px";
-  pk.style.transformOrigin = `${e.clientX - left}px ${e.clientY - top}px`;
-  picking = { k, left, top, id: e.pointerId, btn, x0: e.clientX, y0: e.clientY, px, py };
+function vSelect(k) { vk = k; const [h, , l] = hex2hsl(custom[k]); vh = h; vl = clamp(l, 0.04, 0.95); vDraw(); }
+function vSet() {
+  const hex = hsl2hex(vh, 0.92, vl); custom[vk] = hex;
+  const ib = document.querySelector(`.cbtn[data-k="${vk}"] i`); if (ib) ib.style.background = hex;
   if (themeId !== "custom") applyTheme("custom");
-  requestAnimationFrame(() => { pk.classList.add("show"); pbub.classList.add("show"); });
-  sheet.classList.add("picking");
-  movePick(e.clientX, e.clientY);
+  liveCustom(); vDraw();
 }
-function endPick(e) {
-  if (!picking || (e && e.pointerId !== undefined && e.pointerId !== picking.id)) return;
+function openPick(k) {
+  vSelect(k); vp.classList.add("show"); vp.setAttribute("aria-hidden", "false"); sheet.classList.add("picking");
+}
+function closePick() {
+  if (!vp.classList.contains("show")) return;
   store.set("custom", custom); applyTheme("custom");
-  pk.classList.remove("show"); pbub.classList.remove("show"); sheet.classList.remove("picking");
-  picking = null; syncUI();
+  vp.classList.remove("show"); vp.setAttribute("aria-hidden", "true"); sheet.classList.remove("picking"); syncUI();
 }
-document.querySelectorAll(".cbtn").forEach(btn => {
-  btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} startPick(btn, e); });
-  btn.addEventListener("pointermove", e => { if (picking && e.pointerId === picking.id) { e.preventDefault(); movePick(e.clientX, e.clientY); } });
-  btn.addEventListener("pointerup", endPick); btn.addEventListener("pointercancel", endPick);
-  btn.addEventListener("contextmenu", e => e.preventDefault());
+[[vhue, y => { vh = clamp(y, 0, 0.9999) * 360; }], [vlum, y => { vl = 0.95 - clamp(y, 0, 1) * 0.91; }]].forEach(([el, fn]) => {
+  let id = null;
+  const at = e => { const r = el.getBoundingClientRect(); fn((e.clientY - r.top) / r.height); vSet(); };
+  el.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); id = e.pointerId; try { el.setPointerCapture(id); } catch (_) {} at(e); });
+  el.addEventListener("pointermove", e => { if (e.pointerId === id) { e.preventDefault(); at(e); } });
+  const up = e => { if (e.pointerId === id) { id = null; store.set("custom", custom); } };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
 });
+$("#vpanel").addEventListener("pointerdown", e => e.stopPropagation());
+vp.querySelectorAll(".vtabs button").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); vSelect(b.dataset.k); }));
+vp.addEventListener("pointerdown", e => { if (e.target === vp) { e.preventDefault(); e.stopPropagation(); closePick(); } });
+document.querySelectorAll(".cbtn").forEach(btn => btn.addEventListener("click", e => { e.stopPropagation(); openPick(btn.dataset.k); }));
+
+
 
 
 /* ---------- touch ---------- */
@@ -1687,7 +1751,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v16 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v17 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
