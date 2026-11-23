@@ -67,8 +67,8 @@
   .frame span{opacity:.8}
   .frame.del{border-color:#ff6b6b}
   .frame.mine{background:rgba(255,255,255,.09)}
-  .mats{display:flex;gap:10px;flex-wrap:wrap}
-  .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;width:46px}
+  .mats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px 4px}
+  .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;min-width:0}
   .mats i{width:30px;height:30px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
   .mats button.on i{border-color:#fff}
   .mats span{opacity:.75}
@@ -537,7 +537,8 @@ const FRAMES = [
   { id: "atomic", name: "Atomic", mat: "black", prof: [0.6, 0.22, 0.42, 1.0, 0], cap: 0.15, glass: 0.56, wk: 1.2, capShape: "cone", baseShape: "fins" },
 ];
 let myLamps = store.get("myLamps", []), lampMods = store.get("lampMods", {});
-const MAT_NAMES = { chrome: "Chrome", black: "Matte black", brass: "Brass", copper: "Copper", rose: "Rose gold", ceramic: "White", neon: "Neon" };
+const MAT_NAMES = { chrome: "Chrome", black: "Matte black", gunmetal: "Gunmetal", brass: "Brass", gold: "Gold", copper: "Copper", rose: "Rose gold",
+  walnut: "Walnut", ceramic: "White", pearl: "Pearl", mint: "Mint", neon: "Neon" };
 const wkMul = v => v < 0.5 ? 0.75 + v * 0.5 : 1 + (v - 0.5) * 0.6;
 let frameId = store.get("frame", "classic");
 const frameOf = id => FRAMES.find(f => f.id === id) || myLamps.find(f => f.id === id) || FRAMES[0];
@@ -574,11 +575,18 @@ const MATS = {
   copper: [["#1e0c06", 0], ["#6e3218", .16], ["#f0a070", .3], ["#a2542c", .4], ["#41190b", .68], ["#8a4424", .86], ["#1e0c06", 1]],
   ceramic: [["#8a8a86", 0], ["#c9c9c4", .16], ["#ffffff", .32], ["#e6e6e1", .45], ["#b4b4ae", .7], ["#d2d2cc", .86], ["#8a8a86", 1]],
   black: [["#050506", 0], ["#141416", .16], ["#3a3a40", .3], ["#1c1c20", .4], ["#09090a", .68], ["#18181b", .86], ["#050506", 1]],
+  gunmetal: [["#0b0f13", 0], ["#262f38", .16], ["#8b9aa8", .3], ["#3c4855", .4], ["#141a20", .68], ["#2e3944", .86], ["#0b0f13", 1]],
+  gold: [["#2a1a02", 0], ["#8a5e08", .16], ["#fff0a8", .3], ["#e0b034", .4], ["#5a3c04", .68], ["#b8861c", .86], ["#2a1a02", 1]],
+  walnut: [["#1a0d06", 0], ["#4a2a16", .16], ["#9a6a44", .3], ["#5e3a20", .42], ["#2c180c", .68], ["#4e2e18", .86], ["#1a0d06", 1]],
+  pearl: [["#a59fa8", 0], ["#e2dbe6", .16], ["#ffffff", .3], ["#f0e8f2", .42], ["#c9c0d0", .68], ["#e6def0", .86], ["#a59fa8", 1]],
+  mint: [["#4e8a80", 0], ["#8fd3c6", .16], ["#e8fff9", .3], ["#b6eadf", .42], ["#6fb5a8", .68], ["#9edccf", .86], ["#4e8a80", 1]],
   rose: [["#22100e", 0], ["#7a4440", .16], ["#f6c2b4", .3], ["#b87a6e", .4], ["#4a2420", .68], ["#94605a", .86], ["#22100e", 1]],
 };
 const RIMS = { chrome: ["#1a1a1e", "#b8b8c2", "#55555e", "#2a2a30"], brass: ["#2a1d07", "#ffe39a", "#a07a2a", "#4a3410"],
   copper: ["#2a1208", "#ffc09a", "#a0522d", "#4a2010"], ceramic: ["#9a9a94", "#ffffff", "#d8d8d2", "#a8a8a2"],
-  black: ["#050506", "#55555c", "#202024", "#0c0c0e"], rose: ["#2a1412", "#ffd8cc", "#b87a6e", "#4a2420"] };
+  black: ["#050506", "#55555c", "#202024", "#0c0c0e"], gunmetal: ["#0b0f13", "#c4d0dc", "#4a5866", "#1a2028"],
+  gold: ["#2a1a02", "#fff6c8", "#d8a52a", "#5a3c04"], walnut: ["#1a0d06", "#c9925e", "#6a4022", "#2c180c"],
+  pearl: ["#a59fa8", "#ffffff", "#e2dbe6", "#b8b0bc"], mint: ["#4e8a80", "#f4fffb", "#a8e4d8", "#5e9e94"], rose: ["#2a1412", "#ffd8cc", "#b87a6e", "#4a2420"] };
 
 // Builds the cap + base (and, for thumbnails, the glass) for any frame at any size.
 function frameSVG(F, geo, opt = {}) {
@@ -1475,7 +1483,9 @@ function syncUI() {
   $("#swCue").classList.toggle("on", cueOn);
   $("#vol").value = volume;
   [...$("#breathSeg").children].forEach(b => b.classList.toggle("on", b.dataset.id === breathId));
-  document.querySelectorAll(".cbtn").forEach(b => { b.querySelector("i").style.background = custom[b.dataset.k]; });
+  { const t = themeById(themeId), now = { hot: t.hot, cool: t.cool, liq: t.liqBot };
+    document.querySelectorAll(".cbtn").forEach(b => { b.querySelector("i").style.background = now[b.dataset.k]; }); }
+  renderLiqs();
 }
 function renderChips() {
   const box = $("#chips"); box.innerHTML = "";
@@ -1602,12 +1612,13 @@ sheet.addEventListener("touchstart", e => {
   const onGrab = e.target.closest(".grab");
   if (e.target.closest(".cbtn") || e.target.closest(".lbar")) return;
   if (!onGrab && (sheet.scrollTop > 0 || e.target.closest("input"))) return;
-  drag = { y0: e.touches[0].clientY, t0: performance.now(), dy: 0, active: false, grab: !!onGrab };
+  drag = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, t0: performance.now(), dy: 0, active: false, grab: !!onGrab };
 }, { passive: true });
 sheet.addEventListener("touchmove", e => {
   if (!drag) return;
-  const dy = e.touches[0].clientY - drag.y0;
+  const dy = e.touches[0].clientY - drag.y0, dx = e.touches[0].clientX - drag.x0;
   if (!drag.active) {
+    if (Math.abs(dx) > 6 && Math.abs(dx) >= Math.abs(dy) * 0.7) { drag = null; return; }   // sideways: never moves the menu
     if (dy > 6 && (drag.grab || sheet.scrollTop <= 0)) drag.active = true;
     else if (dy < -6 && !drag.grab) { drag = null; return; }
     else return;
@@ -1798,6 +1809,7 @@ function vSet() {
   liveCustom(); vDraw();
 }
 function openPick(k) {
+  if (themeId !== "custom") { const t = themeById(themeId); custom = { hot: t.hot, cool: t.cool, liq: t.liqBot }; store.set("custom", custom); applyTheme("custom"); }
   vSelect(k); vp.classList.add("show"); vp.setAttribute("aria-hidden", "false"); sheet.classList.add("picking");
 }
 function closePick() {
@@ -1976,7 +1988,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v20 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v21 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
