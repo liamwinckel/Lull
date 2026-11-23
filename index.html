@@ -20,8 +20,9 @@
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;color:#fff}
   #app{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000}
-  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;transition:opacity .35s ease}
-  #lamp{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity .35s ease}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;transform-origin:0 0;
+    transition:opacity .35s ease,transform .6s cubic-bezier(.16,1,.3,1),border-radius .6s ease}
+  #lamp{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform-origin:0 0;transition:opacity .35s ease,transform .6s cubic-bezier(.16,1,.3,1)}
   .fade{opacity:0}
   body.lampview #cue{bottom:calc(env(safe-area-inset-bottom) + 16px)}
   .seg.two{grid-template-columns:1fr 1fr}
@@ -47,7 +48,7 @@
 
   /* card: one small popover above the dock for the chosen group */
   #sheet{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);width:min(calc(100% - 32px),420px);box-sizing:border-box;
-    max-height:62vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 16px;
+    max-height:54vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 16px;
     background:rgba(16,12,14,.72);backdrop-filter:blur(22px) saturate(1.3);-webkit-backdrop-filter:blur(22px) saturate(1.3);
     border-radius:22px;border:1px solid rgba(255,255,255,.08);
     opacity:0;pointer-events:none;transform:translate(-50%,26px) scale(.94);transform-origin:50% 100%;
@@ -408,9 +409,12 @@ void main(){
   float att=uMode>0.5?1.25/(1.+pow(db/(uRes.y*0.6),2.)):1.;
   // liquid: its gradient, a gentle glow rising from the bulb, and the wax's own glow
   vec3 liq=mix(uLiqBot,uLiqTop,smoothstep(0.,1.,y));
-  liq+=bulbc*lf*(0.07*exp(-y*4.)+0.06*exp(-db/(uRes.y*0.3)))*(0.9+0.1*sin(uTime*0.6));
+  // the bulb: a warm hot-spot at the bottom that spreads upward and fades; Brightness turns it up
+  float bulbI=(0.06+0.62*uLight)*mix(0.45,1.,uMode)*(0.93+0.07*sin(uTime*0.6));
+  float bspot=exp(-db/(uRes.y*0.2)), bwide=exp(-db/(uRes.y*0.55));
+  liq+=bulbc*bulbI*(0.85*bspot+0.3*bwide+0.12*exp(-y*3.));
   float gsm=1.-exp(-gw*0.9);    // soft, saturating halo: no plateau, no hard rim
-  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.3+0.16*uBreath)*lf;
+  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight);
   if(uMode<0.5) liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
   // the wax's shape: outward direction, how close to the edge (rho), how thick
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
@@ -443,6 +447,7 @@ void main(){
     float lit=0.5+0.5*dot(dir*rho,tbn);
     wax*=mix(1.,0.42+0.78*lit,S*0.85*uMode);
     wax*=1.-S*0.32*sh;
+    wax*=mix(1.,0.62+0.75*att*(0.35+0.75*uLight),uMode);   // nearer the bulb = more lit
     rp=p+dir*rho*Rd*0.6*T;
   }
   // translucency: thin wax lets the light and liquid behind it through, tinted by the wax
@@ -456,7 +461,7 @@ void main(){
   vec3 col=mix(liq,wax,edge);
   // air bubbles: tiny, mostly clear, a faint edge and a pin-point catch-light
   vec3 bc=vec3(0.); float bdk=0.;
-  for(int j=0;j<24;j++){ if(j>=uNB) break; vec4 c=uBub[j]; float aa=1.2/c.z; vec2 q2=(p-c.xy)/c.z; float d=length(q2);
+  for(int j=0;j<24;j++){ if(j>=uNB) break; vec4 c=uBub[j]; float asp=floor(c.w)/100.; c.w=fract(c.w); float aa=1.2/c.z; vec2 q2=(p-c.xy)/c.z; q2.x/=asp; q2.y*=asp; float d=length(q2);
     if(d<1.4){
       float body=1.-smoothstep(1.-aa,1.+aa,d);
       float rimb=exp(-pow((d-0.88)/max(0.14,aa),2.));
@@ -688,7 +693,7 @@ function reshapeLamp() {
   setTimeout(() => {
     const ot = { ...tank }, oScale = u * avgR(), oLamp = lampGeo, oFrame = lampFrame;
     computeTank(); remap(ot, oScale, oLamp, oFrame); drawLamp(); lampFrame = frameId;
-    canvas.classList.remove("fade"); svg.classList.remove("fade");
+    canvas.classList.remove("fade"); svg.classList.remove("fade"); frameView();
   }, 360);
   renderFrames();
 }
@@ -1075,7 +1080,7 @@ function applyBubblesNow() {
   for (let i = live.length - 1; i >= target; i--) live[i].pop = 0.001;
   for (let i = live.length; i < target; i++) {
     const r = Math.min(W, H) * (0.0028 + Math.random() * 0.0055), y = tank.y0 + tank.h * (0.1 + 0.85 * Math.random());
-    bubbles.push({ x: cx + (Math.random() * 2 - 1) * Math.max(0, halfWidthAt(y) - r * 2), y, r, vx: 0, vy: 0, a: 0, seed: Math.random() * 100, pop: 0 });
+    const q = mkBubble(cx + (Math.random() * 2 - 1) * Math.max(0, halfWidthAt(y) - r * 2), y); q.age = Math.random() * 5; bubbles.push(q);
   }
 }
 function applyParticlesNow() {
@@ -1126,6 +1131,13 @@ function particleStep(dt, bs) {
       if (d < b.r * bs * 0.5 && absorb < 0.001) { q.x = b.x + nx * b.r * bs * 0.5; q.y = b.y + ny * b.r * bs * 0.5; }   // at "Never", never inside
     }
   }
+  for (const q of blobs) if (q.p && q.excess && !q.dying && big.length) {
+    let nb = big[0];
+    for (const b of big) if (Math.hypot(b.x - q.x, b.y - q.y) - b.r < Math.hypot(nb.x - q.x, nb.y - q.y) - nb.r) nb = b;
+    const dx = nb.x - q.x, dy = nb.y - q.y, d = Math.hypot(dx, dy) || 1;
+    const k = relax(2.5, dt); q.vx += (dx / d * 120 * g - q.vx) * k; q.vy += (dy / d * 120 * g - q.vy) * k;   // swims to it
+    q.tr = Math.max(q.tr * Math.exp(-dt * 0.7), u * 0.004);                                                    // and melts smaller on the way
+  }
   // droplets are never created here: they only break off when you stir the wax (see stir())
   if ((partTimer -= dt) > 0) return;
   partTimer = 1;
@@ -1136,37 +1148,44 @@ function particleStep(dt, bs) {
     const q = blobs.find(b => b.p && !b.dying && !b.excess);
     if (q) q.excess = true;
   }
-  for (const q of blobs) if (q.p && q.excess && !q.dying && big.length) {
-    let nb = big[0];
-    for (const b of big) if (Math.hypot(b.x - q.x, b.y - q.y) - b.r < Math.hypot(nb.x - q.x, nb.y - q.y) - nb.r) nb = b;
-    const dx = nb.x - q.x, dy = nb.y - q.y, d = Math.hypot(dx, dy) || 1;
-    const k = relax(2.5, dt); q.vx += (dx / d * 110 * g - q.vx) * k; q.vy += (dy / d * 110 * g - q.vy) * k;   // swims to it
-  }
 }
 
 /* ---------- air bubbles: rise with a gentle wobble and pop at the surface ---------- */
 const MAXB = 24;
 let bubbles = [], bubTimer = 0;
+function mkBubble(x, y) {
+  const z = Math.random(), r = Math.min(W, H) * (0.0022 + 0.009 * z * z * z + 0.002 * Math.random());   // mostly small, a few bigger
+  return { x, y, r, vx: 0, vy: 0, a: 0, pop: 0, age: 0,
+    f1: 1.1 + Math.random() * 2.2, f2: 2.6 + Math.random() * 3.4, p1: Math.random() * 6.28, p2: Math.random() * 6.28,
+    amp: (0.5 + Math.random()) * (2 + r / u * 260), lean: (Math.random() - 0.5) * 6, sp: 0.75 + Math.random() * 0.5, asp: 1 };
+}
 function bubbleStep(dt) {
   const target = Math.round(bubbleAmt * MAXB), cx = tank.x0 + tank.w / 2;
   if ((bubTimer -= dt) <= 0) {
-    bubTimer = 0.25 + Math.random() * 0.5;
+    bubTimer = -Math.log(1 - Math.random() * 0.95) * 0.45;   // irregular gaps, sometimes in little bursts
     if (bubbles.length < target) {
-      const r = Math.min(W, H) * (0.0028 + Math.random() * 0.0055);
-      bubbles.push({ x: cx + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 1.5, y: tank.y0 + tank.h - r * 1.5,
-        r, vx: 0, vy: 0, a: 0, seed: Math.random() * 100, pop: 0 });
+      const bx = cx + (Math.random() - 0.5) * halfWidthAt(tank.y0 + tank.h) * 1.6, n = Math.random() < 0.2 ? 2 + (Math.random() * 2 | 0) : 1;
+      for (let i = 0; i < n && bubbles.length < target; i++) {
+        const q = mkBubble(bx + (Math.random() - 0.5) * 10, tank.y0 + tank.h - 6 - i * 9); q.y -= q.r; bubbles.push(q);
+      }
     }
   }
   for (const b of bubbles) {
     if (b.pop > 0) { b.pop += dt * 6; continue; }
-    b.a = Math.min(1, b.a + dt * 1.5);
+    b.age += dt; b.a = Math.min(1, b.a + dt * 1.2);
     const [fx] = flowAt(b.x, b.y);
-    const tvx = fx * 1.5 + Math.sin(t * 1.6 + b.seed) * 4 * g;
-    const tvy = -(14 + b.r * 7) * g;
-    b.vx += (tvx - b.vx) * relax(2.5, dt); b.vy += (tvy - b.vy) * relax(2.5, dt);
+    const climb = clamp((tank.y0 + tank.h - b.y) / tank.h, 0, 1);
+    // a wandering zig-zag (two unrelated rhythms) that grows as the bubble speeds up, plus the liquid's own flow
+    const wig = Math.sin(b.age * b.f1 + b.p1) + 0.45 * Math.sin(b.age * b.f2 + b.p2);
+    const tvx = fx * 1.6 + (wig * b.amp + b.lean) * g * (0.5 + climb);
+    const tvy = -(10 + b.r * 8) * g * b.sp * (0.8 + 0.5 * climb);
+    b.vx += (tvx - b.vx) * relax(1.8, dt); b.vy += (tvy - b.vy) * relax(1.4, dt);
     b.x += b.vx * dt; b.y += b.vy * dt;
+    // bigger bubbles wobble out of round as they go
+    const big = clamp(b.r / (Math.min(W, H) * 0.008), 0, 1);
+    b.asp = 1 + big * (0.16 * Math.sin(b.age * b.f2 * 1.7 + b.p1) + 0.06 * Math.sign(b.vx) * Math.min(1, Math.abs(b.vx) / (30 * g)));
     const hl = Math.max(0, halfWidthAt(b.y) - b.r * 1.5);
-    b.x = clamp(b.x, cx - hl, cx + hl);
+    if (Math.abs(b.x - cx) > hl) { b.x = clamp(b.x, cx - hl, cx + hl); b.vx *= -0.3; b.lean = -b.lean; }
     if (b.y < tank.y0 + b.r * 2.5) b.pop = 0.001;
   }
   bubbles = bubbles.filter(b => b.pop < 1);
@@ -1183,7 +1202,7 @@ function setView(v) {
     const ot = { ...tank }, oScale = u * avgR(), oLamp = lampGeo;
     view = v;
     computeTank(); remap(ot, oScale, oLamp, lampFrame); drawLamp(); lampFrame = frameId;
-    canvas.classList.remove("fade"); svg.classList.remove("fade");
+    canvas.classList.remove("fade"); svg.classList.remove("fade"); frameView();
     if (view !== viewSel) { const want = viewSel; viewSel = view; setView(want); }   // a later tap won: follow it
   }, 360);
   syncUI();
@@ -1265,7 +1284,7 @@ function render() {
   for (const b of bubbles) {
     if (nb >= MAXB) break;
     const k = 1;
-    barr[nb * 4] = b.x * S; barr[nb * 4 + 1] = (H - b.y) * S; barr[nb * 4 + 2] = b.r * k * S; barr[nb * 4 + 3] = b.a * 0.75 * (1 - b.pop); nb++;
+    barr[nb * 4] = b.x * S; barr[nb * 4 + 1] = (H - b.y) * S; barr[nb * 4 + 2] = b.r * k * S; barr[nb * 4 + 3] = Math.round(clamp(b.asp || 1, 0.6, 1.4) * 100) + Math.min(0.99, b.a * 0.75 * (1 - b.pop)); nb++;
   }
   gl.uniform4fv(U.uBub, barr); gl.uniform1i(U.uNB, nb);
   if (lampGeo) gl.uniform4f(U.uGlass, lampGeo.cx * S, (H - lampGeo.gB) * S, (H - lampGeo.gT) * S, lampGeo.hwMax * S);
@@ -1591,7 +1610,22 @@ function openSheet(name) {
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
+  requestAnimationFrame(frameView);
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
+}
+// keep the whole lamp (or the whole tank in full screen) in view above the open menu
+function frameView() {
+  let tf = "", rad = "";
+  if (sheetOpen && !sheet.classList.contains("picking")) {
+    const sTop = sheet.offsetTop, safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 8;
+    const c0 = lampGeo ? lampGeo.top - 8 : 0, c1 = lampGeo ? lampGeo.bottom + 8 : H;
+    const sc = clamp((sTop - 12 - safeT) / (c1 - c0), 0.3, 1);
+    if (sc < 0.985) { tf = `translate(${(W * (1 - sc) / 2).toFixed(1)}px,${(safeT - c0 * sc).toFixed(1)}px) scale(${sc.toFixed(4)})`; rad = lampGeo ? "" : (26 / sc).toFixed(0) + "px"; }
+  }
+  canvas.style.transform = tf; svg.style.transform = tf; canvas.style.borderRadius = rad;
+  // the shrunken room fades softly into the dark at its sides instead of ending in a hard edge
+  const mk = tf && lampGeo ? "radial-gradient(62% 80% at 50% 50%,#000 62%,transparent 100%)" : "";
+  canvas.style.webkitMaskImage = mk; canvas.style.maskImage = mk;
 }
 function closeSheet(fromY) {
   sheetOpen = false;
@@ -1603,7 +1637,7 @@ function closeSheet(fromY) {
   } else { sheet.style.transition = ""; sheet.style.transform = ""; }
   sheet.classList.remove("open"); openCard = null; clearPeek();
   controls.querySelectorAll(".ctl").forEach(c => c.classList.remove("on"));
-  wake();
+  frameView(); wake();
 }
 // swipe the menu down to close it (from the handle anytime, or anywhere once it's scrolled to the top)
 let drag = null;
@@ -1810,12 +1844,12 @@ function vSet() {
 }
 function openPick(k) {
   if (themeId !== "custom") { const t = themeById(themeId); custom = { hot: t.hot, cool: t.cool, liq: t.liqBot }; store.set("custom", custom); applyTheme("custom"); }
-  vSelect(k); vp.classList.add("show"); vp.setAttribute("aria-hidden", "false"); sheet.classList.add("picking");
+  vSelect(k); vp.classList.add("show"); vp.setAttribute("aria-hidden", "false"); sheet.classList.add("picking"); frameView();
 }
 function closePick() {
   if (!vp.classList.contains("show")) return;
   store.set("custom", custom); applyTheme("custom");
-  vp.classList.remove("show"); vp.setAttribute("aria-hidden", "true"); sheet.classList.remove("picking"); syncUI();
+  vp.classList.remove("show"); vp.setAttribute("aria-hidden", "true"); sheet.classList.remove("picking"); syncUI(); frameView();
 }
 [[vhue, y => { vh = clamp(y, 0, 0.9999) * 360; }], [vlum, y => { vl = 0.95 - clamp(y, 0, 1) * 0.91; }]].forEach(([el, fn]) => {
   let id = null;
@@ -1988,7 +2022,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v21 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v22 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
