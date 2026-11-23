@@ -94,7 +94,9 @@
   .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
   .tile{position:relative;height:112px;border:none;border-radius:18px;overflow:hidden;padding:0;text-align:left;color:#fff;
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
-  .tile:active{transform:scale(.96)}
+  .tile{transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+  .tile:active{transform:translateZ(0) scale(.96)}
+  .tile .tl,.frame img{transform:translateZ(0)}
   .tile.on{box-shadow:inset 0 0 0 2px #fff,0 0 18px rgba(255,255,255,.15)}
   .tile i{position:absolute;border-radius:50%}
   .frame img{display:block;pointer-events:none}
@@ -1501,7 +1503,7 @@ function renderPresets() {
   });
   const add = document.createElement("button"); add.className = "tile add"; add.innerHTML = "<span>+</span><b>Save current</b>";
   add.onclick = () => { $("#presetForm").classList.toggle("show"); setTimeout(() => $("#presetName").focus(), 50); };
-  box.appendChild(add);
+  box.appendChild(add); watchTiles(box);
 }
 function tileMenu(el, i) {
   el.classList.add("menu");
@@ -1643,7 +1645,7 @@ const FEATURED = [
   { name: "Smoke & mirrors", s: { theme: "smoke", frame: "minimal", lampMods: { mat: "gunmetal" }, style: "3d", lightMode: "classic", light: 0.45, shadow: 0.85, trans: 0.5, amount: 0.5, absorb: 0.3, bubbles: 0.15, particles: 0.15 } },
 ];
 // thumbnails are drawn as self-contained pictures (an <img> of the SVG), so iOS Safari always paints them in full
-const thumbImg = (inner, w, h, cls) => `<img onerror="var t=this.closest('.tile');if(t)t.classList.add('nolamp');this.remove()" ${cls ? `class="${cls}" ` : ""}width="${w}" height="${h}" alt="" aria-hidden="true" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w * 3}" height="${h * 3}">${inner}</svg>`)}">`;
+const thumbImg = (inner, w, h, cls) => `<img decoding="sync" loading="eager" onerror="var t=this.closest('.tile');if(t)t.classList.add('nolamp');this.remove()" ${cls ? `class="${cls}" ` : ""}width="${w}" height="${h}" alt="" aria-hidden="true" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w * 3}" height="${h * 3}">${inner}</svg>`)}">`;
 function presetLook(v) {
   const t = v.theme === "custom" && v.custom ? { hot: v.custom.hot, cool: v.custom.cool, liqBot: v.custom.liq, liqTop: rgb2hex(hex2rgb(v.custom.liq).map(x => x * 0.25)) } : themeById(v.theme || themeId);
   return { t, F: frameWith(v.frame || frameId, v.lampMods) };
@@ -1661,9 +1663,20 @@ function presetTile(p, i) {
     `<small>${MAT_NAMES[F.mat] || ""} · ${v.style === "3d" ? "3D" : "Soft"}</small><b>${p.name}</b>`;
   return b;
 }
+const tileIO = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => {
+  if (!e.isIntersecting) return; const im = e.target.querySelector("img"); if (!im) return;
+  im.style.opacity = "0.99"; requestAnimationFrame(() => { im.style.opacity = ""; });
+}), { root: sheet, rootMargin: "60px" }) : null;
+let scrollNudge = 0;
+sheet.addEventListener("scroll", () => { clearTimeout(scrollNudge); scrollNudge = setTimeout(() => {
+  sheet.querySelectorAll(".card.show .tile img, .card.show .frame img").forEach(im => { im.style.opacity = "0.99"; });
+  requestAnimationFrame(() => sheet.querySelectorAll(".card.show .tile img, .card.show .frame img").forEach(im => { im.style.opacity = ""; }));
+}, 120); }, { passive: true });
+function watchTiles(box) { if (tileIO) box.querySelectorAll(".tile, .frame").forEach(t => tileIO.observe(t)); }
 function renderFeatured() {
   const box = $("#featList"); if (!box) return; box.innerHTML = "";
   FEATURED.forEach(p => { const b = presetTile(p); b.onclick = () => applyPreset(p); box.appendChild(b); });
+  watchTiles(box);
 }
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
@@ -2111,7 +2124,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v28 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v29 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
