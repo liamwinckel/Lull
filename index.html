@@ -90,6 +90,25 @@
   .liqs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 2px;-webkit-overflow-scrolling:touch}
   .liqs button{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
   .liqs button.on{border-color:#fff}
+  .tlabel{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.55;margin:4px 2px 8px}
+  .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+  .tile{position:relative;height:112px;border:none;border-radius:18px;overflow:hidden;padding:0;text-align:left;color:#fff;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
+  .tile:active{transform:scale(.96)}
+  .tile.on{box-shadow:inset 0 0 0 2px #fff,0 0 18px rgba(255,255,255,.15)}
+  .tile i{position:absolute;border-radius:50%}
+  .tile .tl{position:absolute;right:4px;top:8px;width:44px;height:74px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
+  .tile b{position:absolute;left:9px;right:6px;bottom:8px;font-size:12.5px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+  .tile small{position:absolute;left:9px;bottom:26px;font-size:9.5px;opacity:.7;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+  .tile.add{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .tile.add span{font-size:28px;font-weight:300;opacity:.8;line-height:1}
+  .tile.add b{position:static;font-weight:500;opacity:.8}
+  .tile .tmenu{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:10px;background:rgba(10,8,10,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:rise .3s ease}
+  .tile .tmenu button{border:none;border-radius:12px;padding:8px;background:rgba(255,255,255,.14);color:#fff;font-size:13px}
+  .tile .tmenu button:last-child{background:rgba(255,90,90,.25)}
+  .tile.editing{display:flex;align-items:center;gap:4px;padding:0 6px;background:rgba(255,255,255,.08)}
+  .tile.editing input{flex:1;min-width:0;border:none;background:rgba(0,0,0,.3);border-radius:10px;color:#fff;font:inherit;font-size:16px;padding:8px;outline:none;-webkit-user-select:text;user-select:text}
+  .tile.editing .del{border:none;background:none;color:#fff;font-size:16px;padding:6px}
   .feat{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
   .feat button{position:relative;height:64px;border:none;border-radius:16px;overflow:hidden;padding:0;text-align:left;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
   .feat button.on{box-shadow:inset 0 0 0 2px #fff}
@@ -280,10 +299,11 @@
   </section>
 
   <section class="card" data-card="presets">
-    <div class="chead"><span>Presets</span><span>save your setup</span></div>
-    <div class="feat" id="featList"></div>
-    <div class="chead" style="font-size:13px;margin-bottom:8px"><span>Yours</span></div>
-    <div class="presets" id="presetList"></div>
+    <div class="chead"><span>Presets</span><span>tap to apply · hold yours to rename or delete</span></div>
+    <div class="tlabel">Featured</div>
+    <div class="tiles" id="featList"></div>
+    <div class="tlabel">Yours</div>
+    <div class="tiles" id="presetList"></div>
     <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form>
   </section>
 </div>
@@ -327,7 +347,15 @@ const THEMES = [
   { id: "gold",     name: "Gold",     hot: "#ffe08a", cool: "#d98a1c", liqBot: "#2a1604", liqTop: "#080401" },
   { id: "jelly",    name: "Jelly",    hot: "#9ff7c4", cool: "#3fc6ff", liqBot: "#0a3446", liqTop: "#01090f" },
   { id: "ember",    name: "Ember",    hot: "#ff9a3d", cool: "#b3130a", liqBot: "#1e0402", liqTop: "#050101" },
-  { id: "citrus",   name: "Citrus",   hot: "#fff36b", cool: "#ff8a1f", liqBot: "#0d2b3a", liqTop: "#020a10" }
+  { id: "citrus",   name: "Citrus",   hot: "#fff36b", cool: "#ff8a1f", liqBot: "#0d2b3a", liqTop: "#020a10" },
+  { id: "sunset",   name: "Sunset",   hot: "#ffb36b", cool: "#e0406a", liqBot: "#3a0f3e", liqTop: "#0c0312" },
+  { id: "arctic",   name: "Arctic",   hot: "#e8fbff", cool: "#7fc8ff", liqBot: "#0a3150", liqTop: "#020b14" },
+  { id: "cola",     name: "Cola",     hot: "#ff5a40", cool: "#8a0f18", liqBot: "#2a1408", liqTop: "#080301" },
+  { id: "toxic",    name: "Toxic",    hot: "#d4ff3d", cool: "#2fe07a", liqBot: "#0b2610", liqTop: "#020803" },
+  { id: "cosmic",   name: "Cosmic",   hot: "#9ad0ff", cool: "#b04dff", liqBot: "#120a3a", liqTop: "#02010a" },
+  { id: "sorbet",   name: "Sorbet",   hot: "#ffe0b8", cool: "#ff8f9a", liqBot: "#4a2236", liqTop: "#12060d" },
+  { id: "mermaid",  name: "Mermaid",  hot: "#6ff0e0", cool: "#6a5cff", liqBot: "#0b2848", liqTop: "#02070f" },
+  { id: "smoke",    name: "Smoke",    hot: "#d6d0c8", cool: "#5f5852", liqBot: "#1a1a1d", liqTop: "#040405" }
 ];
 const LIQUIDS = ["#4a0a12", "#06284a", "#0c2e20", "#17123a", "#3d0d3a", "#2a1604", "#0a3446", "#202226", "#3a2a10", "#0e3a36", "#2b0f4a", "#000000"];
 const hex2rgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16) / 255); };
@@ -559,7 +587,8 @@ const wkMul = v => v < 0.5 ? 0.75 + v * 0.5 : 1 + (v - 0.5) * 0.6;
 let frameId = store.get("frame", "classic");
 const frameOf = id => FRAMES.find(f => f.id === id) || myLamps.find(f => f.id === id) || FRAMES[0];
 // the lamp on screen: the chosen frame plus any tweaks (finish, cap, base, width)
-function curFrame() { const F = frameOf(frameId), m = lampMods || {};
+function curFrame() { return frameWith(frameId, lampMods); }
+function frameWith(id, mods) { const F = frameOf(id), m = mods || {};
   return { ...F, mat: m.mat || F.mat, capShape: m.capShape || F.capShape, baseShape: m.baseShape || F.baseShape, wk: F.wk * (m.w != null ? wkMul(m.w) : 1) }; }
 const profWith = (P, s) => {
   s = clamp(s, 0, 1);
@@ -1433,7 +1462,7 @@ const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSe
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renamePreset(i, el) {
   const p = presets[i], old = p.name;
-  el.classList.add("editing"); el.innerHTML = "";
+  el.classList.add("editing", "menu"); el.innerHTML = "";
   const inp = document.createElement("input"); inp.value = old; inp.maxLength = 24; inp.setAttribute("aria-label", "Rename preset");
   const ok = document.createElement("button"); ok.className = "del"; ok.textContent = "✓"; ok.setAttribute("aria-label", "Save name");
   let done = false;
@@ -1455,20 +1484,31 @@ function renderPresets() {
   renderFeatured();
   const box = $("#presetList"); box.innerHTML = "";
   presets.forEach((p, i) => {
-    const el = document.createElement("div"); el.className = "preset" + (p.name === activePreset ? " on" : "");
-    const go = document.createElement("button"); go.textContent = p.name;
+    const el = presetTile(p, i);
+    // hold for options: rename or delete
     let holdT = 0, held = false;
-    go.addEventListener("pointerdown", () => { held = false; clearTimeout(holdT); holdT = setTimeout(() => { held = true; renamePreset(i, el); }, 550); });
-    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) go.addEventListener(ev, () => clearTimeout(holdT));
-    go.addEventListener("contextmenu", e => e.preventDefault());
-    go.onclick = () => { if (!held) applyPreset(p); held = false; };
-    const del = document.createElement("button"); del.className = "del"; del.textContent = "✕"; del.setAttribute("aria-label", "Delete " + p.name);
-    del.onclick = () => { if (del.dataset.armed) { presets.splice(i, 1); store.set("presets", presets); renderPresets(); } else { del.dataset.armed = 1; del.textContent = "Delete?"; setTimeout(() => { delete del.dataset.armed; del.textContent = "✕"; }, 2500); } };
-    el.append(go, del); box.appendChild(el);
+    el.addEventListener("pointerdown", () => { held = false; clearTimeout(holdT); holdT = setTimeout(() => { held = true; tileMenu(el, i); }, 550); });
+    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(ev, () => clearTimeout(holdT));
+    el.addEventListener("contextmenu", e => e.preventDefault());
+    el.onclick = e => { if (held || el.classList.contains("menu")) return; applyPreset(p); };
+    box.appendChild(el);
   });
-  const add = document.createElement("button"); add.className = "save-p"; add.textContent = "+ Save current";
+  const add = document.createElement("button"); add.className = "tile add"; add.innerHTML = "<span>+</span><b>Save current</b>";
   add.onclick = () => { $("#presetForm").classList.toggle("show"); setTimeout(() => $("#presetName").focus(), 50); };
   box.appendChild(add);
+}
+function tileMenu(el, i) {
+  el.classList.add("menu");
+  const m = document.createElement("div"); m.className = "tmenu";
+  const rn = document.createElement("button"); rn.textContent = "Rename";
+  const dl = document.createElement("button"); dl.textContent = "Delete";
+  const cancel = () => { m.remove(); el.classList.remove("menu"); };
+  rn.onclick = e => { e.stopPropagation(); if (performance.now() - t0 < 300) return; m.remove(); renamePreset(i, el); };
+  dl.onclick = e => { e.stopPropagation(); if (dl.dataset.armed) { presets.splice(i, 1); store.set("presets", presets); renderPresets(); } else { dl.dataset.armed = 1; dl.textContent = "Sure?"; } };
+  const t0 = performance.now();
+  m.onclick = e => { e.stopPropagation(); if (e.target === m && performance.now() - t0 > 500) cancel(); };   // ignore the release of the hold itself
+  m.append(rn, dl); el.appendChild(m);
+  setTimeout(() => { if (m.isConnected) cancel(); }, 6000);
 }
 $("#presetForm").addEventListener("submit", e => {
   e.preventDefault();
@@ -1588,18 +1628,35 @@ const FEATURED = [
   { name: "Bubblegum", s: { theme: "rose", frame: "capsule", lampMods: { mat: "rose" }, style: "soft", lightMode: "bulb", light: 0.65, shadow: 0.3, trans: 0.45, amount: 0.5, absorb: 0.55, bubbles: 0.7, particles: 0.4, view: "lamp" } },
   { name: "Atomic citrus", s: { theme: "citrus", frame: "atomic", lampMods: {}, style: "soft", lightMode: "classic", light: 0.6, shadow: 0.5, trans: 0.3, amount: 0.6, absorb: 0.45, bubbles: 0.3, particles: 0.35, view: "lamp" } },
   { name: "Night sky", s: { theme: "midnight", frame: "tower", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.35, shadow: 0.6, trans: 0.7, amount: 0.4, absorb: 0.5, bubbles: 0.4, particles: 0.9, view: "lamp" } },
+  { name: "Sunset globe", s: { theme: "sunset", frame: "globe", lampMods: { mat: "gold" }, style: "soft", lightMode: "bulb", light: 0.7, shadow: 0.35, trans: 0.45, amount: 0.55, absorb: 0.6, bubbles: 0.3, particles: 0.3 } },
+  { name: "Arctic", s: { theme: "arctic", frame: "tower", lampMods: { mat: "pearl" }, style: "3d", lightMode: "bulb", light: 0.6, shadow: 0.3, trans: 0.85, amount: 0.45, absorb: 0.4, bubbles: 0.6, particles: 0.5 } },
+  { name: "Cherry cola", s: { theme: "cola", frame: "bottle", lampMods: { mat: "walnut", capShape: "knob" }, style: "3d", lightMode: "bulb", light: 0.5, shadow: 0.6, trans: 0.3, amount: 0.6, absorb: 0.35, bubbles: 0.8, particles: 0.2 } },
+  { name: "Toxic waste", s: { theme: "toxic", frame: "atomic", lampMods: { mat: "gunmetal" }, style: "soft", lightMode: "bulb", light: 0.75, shadow: 0.45, trans: 0.4, amount: 0.6, absorb: 0.25, bubbles: 0.5, particles: 0.85 } },
+  { name: "Galaxy", s: { theme: "cosmic", frame: "globe", lampMods: { mat: "black", baseShape: "pedestal" }, style: "3d", lightMode: "bulb", light: 0.45, shadow: 0.55, trans: 0.75, amount: 0.4, absorb: 0.55, bubbles: 0.1, particles: 1 } },
+  { name: "Peach sorbet", s: { theme: "sorbet", frame: "capsule", lampMods: { mat: "ceramic" }, style: "soft", lightMode: "bulb", light: 0.65, shadow: 0.25, trans: 0.35, amount: 0.55, absorb: 0.7, bubbles: 0.35, particles: 0.2 } },
+  { name: "Mermaid", s: { theme: "mermaid", frame: "hourglass", lampMods: { mat: "mint" }, style: "3d", lightMode: "bulb", light: 0.55, shadow: 0.45, trans: 0.7, amount: 0.5, absorb: 0.5, bubbles: 0.55, particles: 0.35 } },
+  { name: "Smoke & mirrors", s: { theme: "smoke", frame: "minimal", lampMods: { mat: "gunmetal" }, style: "3d", lightMode: "classic", light: 0.45, shadow: 0.85, trans: 0.5, amount: 0.5, absorb: 0.3, bubbles: 0.15, particles: 0.15 } },
 ];
+function presetLook(v) {
+  const t = v.theme === "custom" && v.custom ? { hot: v.custom.hot, cool: v.custom.cool, liqBot: v.custom.liq, liqTop: rgb2hex(hex2rgb(v.custom.liq).map(x => x * 0.25)) } : themeById(v.theme || themeId);
+  return { t, F: frameWith(v.frame || frameId, v.lampMods) };
+}
+// a little picture of the whole look: its liquid, its wax, and its actual lamp
+function presetTile(p, i) {
+  const v = p.s, { t, F } = presetLook(v), b = document.createElement("button");
+  b.className = "tile" + (activePreset === p.name ? " on" : "");
+  const op = 1 - (v.trans ?? 0.3) * 0.45;
+  b.style.background = `radial-gradient(90% 70% at 72% 105%,${t.hot}55,transparent 65%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
+  const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;opacity:${op};background:${v.style === "3d" ? `radial-gradient(circle at 40% 35%,${t.hot},${t.cool} 75%)` : `radial-gradient(circle,${t.hot},${t.cool})`};box-shadow:0 0 ${10 + 14 * (v.light ?? 0.5)}px ${t.hot}66"></i>`;
+  const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
+  const lamp = `<svg class="tl" viewBox="0 0 44 74" aria-hidden="true">${frameSVG(F, geo, { id: "pt" + (i ?? "f") + p.name.replace(/\W/g, ""), thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot })}</svg>`;
+  b.innerHTML = blob(10, 16, 22) + blob(30, 40, 13) + blob(14, 54, 9) + lamp +
+    `<small>${MAT_NAMES[F.mat] || ""} · ${v.style === "3d" ? "3D" : "Soft"}</small><b>${p.name}</b>`;
+  return b;
+}
 function renderFeatured() {
   const box = $("#featList"); if (!box) return; box.innerHTML = "";
-  FEATURED.forEach(p => {
-    const t = themeById(p.s.theme), b = document.createElement("button");
-    b.className = activePreset === p.name ? "on" : "";
-    b.style.background = `radial-gradient(120% 90% at 50% 120%,${t.hot}33,transparent 60%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
-    const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;background:radial-gradient(circle at 40% 35%,${t.hot},${t.cool});opacity:${1 - p.s.trans * 0.5}"></i>`;
-    b.innerHTML = blob(64, 18, 26) + blob(80, 52, 16) + blob(52, 58, 12) + `<small>${MAT_NAMES[(p.s.lampMods && p.s.lampMods.mat) || frameOf(p.s.frame).mat]} · ${frameOf(p.s.frame).name}</small><b>${p.name}</b>`;
-    b.onclick = () => applyPreset(p);
-    box.appendChild(b);
-  });
+  FEATURED.forEach(p => { const b = presetTile(p); b.onclick = () => applyPreset(p); box.appendChild(b); });
 }
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
@@ -2045,7 +2102,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v24 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v25 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
