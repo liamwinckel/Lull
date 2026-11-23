@@ -1205,16 +1205,19 @@ function popBubble(b) { if (b.pop === 0) { b.pop = 0.001; audio.plip(); } }
 
 /* ---------- lamp body (cap + base) ---------- */
 const svg = $("#lamp");
-function setView(v) {
+let lampPreview = false, viewTemp = false;
+function setView(v, temp) {
+  if (!temp) lampPreview = false;
+  viewTemp = !!temp;
   if (v === viewSel) return;
-  viewSel = v; store.set("view", v);
+  viewSel = v; if (!temp) store.set("view", v);
   canvas.classList.add("fade"); svg.classList.add("fade");
   setTimeout(() => {
     const ot = { ...tank }, oScale = u * avgR(), oLamp = lampGeo;
     view = v;
     computeTank(); remap(ot, oScale, oLamp, lampFrame); drawLamp(); lampFrame = frameId;
     canvas.classList.remove("fade"); svg.classList.remove("fade"); frameView();
-    if (view !== viewSel) { const want = viewSel; viewSel = view; setView(want); }   // a later tap won: follow it
+    if (view !== viewSel) { const want = viewSel; viewSel = view; setView(want, viewTemp); }   // a later tap won: follow it
   }, 360);
   syncUI();
 }
@@ -1619,6 +1622,9 @@ function openSheet(name) {
   clearPeek();
   { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   openCard = name; sheetOpen = true;
+  // Design always shows the lamp beside the panel; if you were in full screen, it's only a preview
+  if (name === "lamp" && viewSel === "full") { lampPreview = true; setView("lamp", true); }
+  else if (name !== "lamp" && lampPreview) { lampPreview = false; setView("full", true); }
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
@@ -1645,6 +1651,7 @@ function frameView() {
 }
 function closeSheet(fromY) {
   sheetOpen = false;
+  if (lampPreview) { lampPreview = false; setView("full", true); }
   if (fromY != null) {
     // carry on downward from where the finger let go, fading as it goes
     sheet.style.transition = "transform .38s cubic-bezier(.25,.6,.3,1), opacity .32s ease";
@@ -2038,7 +2045,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v23 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v24 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
