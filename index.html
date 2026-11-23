@@ -1714,7 +1714,8 @@ function openSheet(name) {
 function frameView() {
   let tf = "";
   const pw = Math.round(clamp(W * 0.58, 210, 330)); document.documentElement.style.setProperty("--pw", pw + "px");
-  if (sheetOpen && !sheet.classList.contains("picking") && lampGeo) {
+  // only Design and Presets move the lamp aside; other tabs just float over the normal view
+  if (sheetOpen && !sheet.classList.contains("picking") && lampGeo && (openCard === "lamp" || openCard === "presets")) {
     const safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 6, bot = controls.offsetTop - 8;
     const colW = W - pw - 18, c0 = lampGeo.top - 6, c1 = lampGeo.bottom + 6, lw = lampGeo.hwMax * 2.9;
     const sc = Math.min(1, (bot - safeT) / (c1 - c0), (colW - 6) / lw);
@@ -2124,7 +2125,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v29 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v30 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
