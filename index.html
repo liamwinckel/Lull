@@ -97,7 +97,8 @@
   .tile:active{transform:scale(.96)}
   .tile.on{box-shadow:inset 0 0 0 2px #fff,0 0 18px rgba(255,255,255,.15)}
   .tile i{position:absolute;border-radius:50%}
-  .tile .tl{position:absolute;right:4px;top:8px;width:44px;height:74px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
+  .frame img{display:block;pointer-events:none}
+  .tile .tl{position:absolute;pointer-events:none;right:4px;top:8px;width:44px;height:74px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
   .tile b{position:absolute;left:9px;right:6px;bottom:8px;font-size:12.5px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 6px rgba(0,0,0,.7)}
   .tile small{position:absolute;left:9px;bottom:26px;font-size:9.5px;opacity:.7;text-shadow:0 1px 6px rgba(0,0,0,.7)}
   .tile.add{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
@@ -579,6 +580,7 @@ const FRAMES = [
   { id: "capsule", name: "Capsule", mat: "ceramic", prof: [0.5, 0.2, 0, 0, 3], cap: 0.07, glass: 0.68, wk: 0.92, capShape: "dome", baseShape: "block" },
   { id: "tower", name: "Tower", mat: "chrome", prof: [0.9, 0.2, 0.72, 1.6, 0], cap: 0.11, glass: 0.66, wk: 0.74, capShape: "spike", baseShape: "flare" },
   { id: "bottle", name: "Bottle", mat: "copper", prof: [0.96, 0.55, 0.36, 2.4, 0], cap: 0.12, glass: 0.6, wk: 1.15, capShape: "knob", baseShape: "pedestal" },
+  { id: "teardrop", name: "Teardrop", mat: "gold", prof: [0.72, 0.24, 0.26, 1.25, 0], cap: 0.12, glass: 0.6, wk: 1.12, capShape: "spike", baseShape: "pedestal" },
   { id: "atomic", name: "Atomic", mat: "black", prof: [0.6, 0.22, 0.42, 1.0, 0], cap: 0.15, glass: 0.56, wk: 1.2, capShape: "cone", baseShape: "fins" },
 ];
 let myLamps = store.get("myLamps", []), lampMods = store.get("lampMods", {});
@@ -653,7 +655,7 @@ function frameSVG(F, geo, opt = {}) {
     const fw = hwMax * 1.5;
     base = `<path fill="${fill}" ${stroke} d="M${cx - bT},${gB} L${cx + bT},${gB} L${cx + bT * 1.12},${bottom - rim} L${cx - bT * 1.12},${bottom - rim} Z"/>
       <path ${neon ? stroke : ""} fill="${fill}" d="M${cx + bT * 0.95},${gB + bh * 0.25} Q${cx + fw * 0.9},${gB + bh * 0.55} ${cx + fw},${bottom} L${cx + bT * 1.12},${bottom - rim} Z"/>
-      <path ${neon ? stroke : ""} fill="${fill}" d="M${cx - bT * 0.95},${gB + bh * 0.25} Q${cx - fw * 0.9},${gB + bh * 0.55} ${cx - fw},${bottom} L${cx - bT * 1.12},${bottom - rim} Z"`;
+      <path ${neon ? stroke : ""} d="M${cx - bT * 0.95},${gB + bh * 0.25} Q${cx - fw * 0.9},${gB + bh * 0.55} ${cx - fw},${bottom} L${cx - bT * 1.12},${bottom - rim} Z"`;
   } else if (F.baseShape === "pedestal") {
     const nk = hb * 0.7;
     base = `<path d="M${cx - hb * 1.05},${gB} L${cx + hb * 1.05},${gB} Q${cx + nk},${gB + bh * 0.25} ${cx + nk},${gB + bh * 0.45} Q${cx + nk},${gB + bh * 0.7} ${cx + bB},${bottom - rim * 1.6} L${cx + bB},${bottom} L${cx - bB},${bottom} L${cx - bB},${bottom - rim * 1.6} Q${cx - nk},${gB + bh * 0.7} ${cx - nk},${gB + bh * 0.45} Q${cx - nk},${gB + bh * 0.25} ${cx - hb * 1.05},${gB} Z"`;
@@ -711,7 +713,7 @@ function renderFrames() {
     const b = document.createElement("button"); b.className = "frame" + (F.id === frameId && viewSel === "lamp" ? " on" : "") + (mine ? " mine" : "");
     b.setAttribute("aria-label", F.name + " lamp");
     const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
-    b.innerHTML = `<svg viewBox="0 0 44 74" width="44" height="74" aria-hidden="true">${frameSVG(F, geo, { id: "t" + (++thumbGen) + F.id, thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot })}</svg><span>${F0.name}</span>`;
+    b.innerHTML = `${thumbImg(frameSVG(F, geo, { id: "t", thumb: true, hot: th.hot, liqTop: th.liqTop, liqBot: th.liqBot }), 44, 74)}<span>${F0.name}</span>`;
     b.onclick = () => { if (b.dataset.held) { delete b.dataset.held; return; } setFrame(F.id); };
     if (mine) {   // hold one of your lamps to delete it
       let ht = 0; b.addEventListener("pointerdown", () => { ht = setTimeout(() => { b.dataset.held = 1;
@@ -1637,7 +1639,8 @@ const FEATURED = [
   { name: "Mermaid", s: { theme: "mermaid", frame: "hourglass", lampMods: { mat: "mint" }, style: "3d", lightMode: "bulb", light: 0.55, shadow: 0.45, trans: 0.7, amount: 0.5, absorb: 0.5, bubbles: 0.55, particles: 0.35 } },
   { name: "Smoke & mirrors", s: { theme: "smoke", frame: "minimal", lampMods: { mat: "gunmetal" }, style: "3d", lightMode: "classic", light: 0.45, shadow: 0.85, trans: 0.5, amount: 0.5, absorb: 0.3, bubbles: 0.15, particles: 0.15 } },
 ];
-let thumbGen = 0;
+// thumbnails are drawn as self-contained pictures (an <img> of the SVG), so iOS Safari always paints them in full
+const thumbImg = (inner, w, h, cls) => `<img ${cls ? `class="${cls}" ` : ""}width="${w}" height="${h}" alt="" aria-hidden="true" draggable="false" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w * 3}" height="${h * 3}">${inner}</svg>`)}">`;
 function presetLook(v) {
   const t = v.theme === "custom" && v.custom ? { hot: v.custom.hot, cool: v.custom.cool, liqBot: v.custom.liq, liqTop: rgb2hex(hex2rgb(v.custom.liq).map(x => x * 0.25)) } : themeById(v.theme || themeId);
   return { t, F: frameWith(v.frame || frameId, v.lampMods) };
@@ -1650,7 +1653,7 @@ function presetTile(p, i) {
   b.style.background = `radial-gradient(90% 70% at 72% 105%,${t.hot}55,transparent 65%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
   const blob = (x, y, r) => `<i style="left:${x}%;top:${y}%;width:${r}px;height:${r}px;opacity:${op};background:${v.style === "3d" ? `radial-gradient(circle at 40% 35%,${t.hot},${t.cool} 75%)` : `radial-gradient(circle,${t.hot},${t.cool})`};box-shadow:0 0 ${10 + 14 * (v.light ?? 0.5)}px ${t.hot}66"></i>`;
   const L = 66, geo = { cx: 22, top: 4, L, gT: 4 + F.cap * L, gB: 4 + (F.cap + F.glass) * L, hwMax: Math.min(F.wk > 1.2 ? 15 : 11, F.glass * L * 0.21 * F.wk), bottom: 4 + L };
-  const lamp = `<svg class="tl" viewBox="0 0 44 74" aria-hidden="true">${frameSVG(F, geo, { id: "pt" + (++thumbGen) + (i ?? "f") + p.name.replace(/\W/g, ""), thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot })}</svg>`;
+  const lamp = thumbImg(frameSVG(F, geo, { id: "p", thumb: true, hot: t.hot, liqTop: t.liqTop, liqBot: t.liqBot }), 44, 74, "tl");
   b.innerHTML = blob(10, 16, 22) + blob(30, 40, 13) + blob(14, 54, 9) + lamp +
     `<small>${MAT_NAMES[F.mat] || ""} · ${v.style === "3d" ? "3D" : "Soft"}</small><b>${p.name}</b>`;
   return b;
@@ -2104,7 +2107,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v26 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v27 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
