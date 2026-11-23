@@ -38,12 +38,14 @@
 
   /* dock: a slim floating bar of icons */
   #controls{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);
-    display:flex;gap:4px;padding:6px;border-radius:32px;background:rgba(16,12,14,.5);
+    display:flex;gap:3px;padding:6px;border-radius:32px;background:rgba(16,12,14,.5);
     backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.1);transition:opacity .9s ease}
   #controls.hidden{opacity:0;pointer-events:none}
-  .ctl{width:54px;height:52px;border-radius:26px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;transition:background .25s;color:#fff}
+  .ctl{width:47px;height:52px;border-radius:26px;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;transition:background .25s;color:#fff}
   .ctl span{font-size:10px;letter-spacing:.02em;opacity:.85}
   .ctl.on{background:rgba(255,255,255,.18)}
+  .ctl.vbtn{position:relative}
+  .ctl.vbtn::after{content:"";position:absolute;right:-2px;top:14px;bottom:14px;width:1px;background:rgba(255,255,255,.14)}
   .ctl svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.92}
 
   /* card: one small popover above the dock for the chosen group */
@@ -54,6 +56,18 @@
     opacity:0;pointer-events:none;transform:translate(-50%,26px) scale(.94);transform-origin:50% 100%;
     transition:transform .55s cubic-bezier(.16,1,.3,1),opacity .4s ease,background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
   #sheet.open{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+  /* side panel: settings on the right, the lamp stays big on the left */
+  #sheet{left:auto;right:10px;top:calc(env(safe-area-inset-top) + 10px);bottom:auto;width:var(--pw,226px);
+    max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 104px);padding:2px 12px 14px;border-radius:26px;transform:translateX(34px) scale(.97);transform-origin:100% 50%}
+  #sheet.open{transform:none}
+  #sheet .grab{display:none}
+  #sheet .chead{flex-direction:column;align-items:flex-start;gap:2px;margin:12px 0 10px}
+  #sheet .chead span + span{font-size:11px}
+  #sheet .seg button{font-size:12.5px;padding-left:2px;padding-right:2px}
+  #sheet .row.lbar{font-size:13.5px;padding:0 13px}
+  #sheet .custom{gap:6px}
+  #sheet .cbtn{flex-direction:column;gap:5px;padding:9px 4px;min-width:0;font-size:11.5px}
+  #sheet .cbtn i{width:30px;height:30px}
   #sheet .card{display:none}
   #sheet .card.show{display:block}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -68,7 +82,7 @@
   .frame span{opacity:.8}
   .frame.del{border-color:#ff6b6b}
   .frame.mine{background:rgba(255,255,255,.09)}
-  .mats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px 4px}
+  .mats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 4px}
   .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;min-width:0}
   .mats i{width:30px;height:30px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
   .mats button.on i{border-color:#fff}
@@ -190,10 +204,11 @@
 <div id="toast"></div>
 
 <div id="controls" class="hidden" role="toolbar" aria-label="Lull controls">
+  <button class="ctl vbtn" id="viewBtn" aria-label="Switch view"><svg viewBox="0 0 24 24" aria-hidden="true"></svg><span></span></button>
   <button class="ctl" data-card="look"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3.2 3.8 6 7 6 10.2a6 6 0 0 1-12 0c0-3.2 2.8-6.4 6-10.2z"/></svg><span>Colour</span></button>
   <button class="ctl" data-card="light"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="11" r="4"/><path d="M12 3v1.5M5.2 6l1.1 1.1M18.8 6l-1.1 1.1M3.5 13h1.5M19 13h1.5M8 19.5h8"/></svg><span>Light</span></button>
   <button class="ctl" data-card="lava"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="14.5" r="5"/><circle cx="16.5" cy="7" r="3"/></svg><span>Lava</span></button>
-  <button class="ctl" data-card="lamp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3.5h4M9.5 3.5 7.5 17h9l-2-13.5M7.5 17 6 20.5h12L16.5 17"/></svg><span>Lamp</span></button>
+  <button class="ctl" data-card="lamp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5l3.8-.9L19 7.9a1.9 1.9 0 0 0-2.7-2.7L5.6 15.9z"/><path d="M14.5 7l2.5 2.5"/></svg><span>Design</span></button>
   <button class="ctl" data-card="calm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12c2.2-4.5 4.4-4.5 6.6 0s4.4 4.5 6.6 0 3.3-3 4.8-1.5"/></svg><span>Calm</span></button>
   <button class="ctl" data-card="presets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/></svg><span>Presets</span></button>
 </div>
@@ -238,11 +253,7 @@
   </section>
 
   <section class="card" data-card="lamp">
-    <div class="chead"><span>Lamp</span><span>view and frame</span></div>
-    <div class="seg two" id="viewSeg" style="margin-bottom:4px">
-      <button data-v="full">Full screen</button>
-      <button data-v="lamp">Lamp</button>
-    </div>
+    <div class="chead"><span>Design</span><span>shape, finish and saved lamps</span></div>
     <div class="frames" id="frameList"></div>
     <div class="chead" style="margin-top:12px"><span>Make it yours</span><span>hold a saved lamp to delete</span></div>
     <div class="mats" id="matOpts"></div>
@@ -1478,10 +1489,10 @@ function applyPreset(p) {
   applyTheme(v.theme || themeId);
   const nm = v.lampMods || {}, modsDiffer = JSON.stringify(nm) !== JSON.stringify(lampMods || {});
   if (v.frame && (v.frame !== frameId || modsDiffer)) {
-    if ((v.view || viewSel) === "lamp" && viewSel === "lamp") setFrame(v.frame, nm);
+    if (viewSel === "lamp") setFrame(v.frame, nm);
     else { frameId = v.frame; store.set("frame", frameId); lampMods = nm; store.set("lampMods", nm); syncLampOpts(); }
   }
-  if (v.view && v.view !== viewSel) setView(v.view); else { applyAmountNow(); }
+  if (viewSel !== "lamp") setView("lamp"); else { applyAmountNow(); }
   applyBubblesNow(); applyParticlesNow();
   setSound(v.sound ?? soundOn);
   activePreset = p.name; store.set("activePreset", p.name);
@@ -1491,7 +1502,9 @@ function applyPreset(p) {
 function syncUI() {
   renderFrames(); syncLampOpts();
   queueMicrotask(() => BARS.forEach(f => f()));
-  [...$("#viewSeg").children].forEach(b => b.classList.toggle("on", b.dataset.v === viewSel));
+  { const vb = $("#viewBtn"), lampNow = viewSel === "lamp";
+    vb.querySelector("span").textContent = lampNow ? "Full" : "Lamp";
+    vb.querySelector("svg").innerHTML = lampNow ? '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>' : '<path d="M10 3.5h4M9.5 3.5 7.5 17h9l-2-13.5M7.5 17 6 20.5h12L16.5 17"/>'; }
   [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
   [...$("#modeSeg").children].forEach(b => b.classList.toggle("on", b.dataset.m === lightMode));
   $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
@@ -1571,7 +1584,7 @@ const FEATURED = [
   { name: "Gallery", s: { theme: "mono", frame: "minimal", lampMods: {}, style: "3d", lightMode: "classic", light: 0.55, shadow: 0.75, trans: 0.2, amount: 0.45, absorb: 0.25, bubbles: 0.1, particles: 0.1, view: "lamp" } },
   { name: "Bubblegum", s: { theme: "rose", frame: "capsule", lampMods: { mat: "rose" }, style: "soft", lightMode: "bulb", light: 0.65, shadow: 0.3, trans: 0.45, amount: 0.5, absorb: 0.55, bubbles: 0.7, particles: 0.4, view: "lamp" } },
   { name: "Atomic citrus", s: { theme: "citrus", frame: "atomic", lampMods: {}, style: "soft", lightMode: "classic", light: 0.6, shadow: 0.5, trans: 0.3, amount: 0.6, absorb: 0.45, bubbles: 0.3, particles: 0.35, view: "lamp" } },
-  { name: "Night sky", s: { theme: "midnight", frame: "tower", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.35, shadow: 0.6, trans: 0.7, amount: 0.4, absorb: 0.5, bubbles: 0.4, particles: 0.9, view: "full" } },
+  { name: "Night sky", s: { theme: "midnight", frame: "tower", lampMods: { mat: "black" }, style: "3d", lightMode: "bulb", light: 0.35, shadow: 0.6, trans: 0.7, amount: 0.4, absorb: 0.5, bubbles: 0.4, particles: 0.9, view: "lamp" } },
 ];
 function renderFeatured() {
   const box = $("#featList"); if (!box) return; box.innerHTML = "";
@@ -1615,17 +1628,20 @@ function openSheet(name) {
 }
 // keep the whole lamp (or the whole tank in full screen) in view above the open menu
 function frameView() {
-  let tf = "", rad = "";
-  if (sheetOpen && !sheet.classList.contains("picking")) {
-    const sTop = sheet.offsetTop, safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 8;
-    const c0 = lampGeo ? lampGeo.top - 8 : 0, c1 = lampGeo ? lampGeo.bottom + 8 : H;
-    const sc = clamp((sTop - 12 - safeT) / (c1 - c0), 0.3, 1);
-    if (sc < 0.985) { tf = `translate(${(W * (1 - sc) / 2).toFixed(1)}px,${(safeT - c0 * sc).toFixed(1)}px) scale(${sc.toFixed(4)})`; rad = lampGeo ? "" : (26 / sc).toFixed(0) + "px"; }
+  let tf = "";
+  const pw = Math.round(clamp(W * 0.58, 210, 330)); document.documentElement.style.setProperty("--pw", pw + "px");
+  if (sheetOpen && !sheet.classList.contains("picking") && lampGeo) {
+    const safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 6, bot = controls.offsetTop - 8;
+    const colW = W - pw - 18, c0 = lampGeo.top - 6, c1 = lampGeo.bottom + 6, lw = lampGeo.hwMax * 2.9;
+    const sc = Math.min(1, (bot - safeT) / (c1 - c0), (colW - 6) / lw);
+    const tx = 6 + colW / 2 - lampGeo.cx * sc, ty = safeT + ((bot - safeT) - (c1 - c0) * sc) / 2 - c0 * sc;
+    tf = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(4)})`;
   }
-  canvas.style.transform = tf; svg.style.transform = tf; canvas.style.borderRadius = rad;
-  // the shrunken room fades softly into the dark at its sides instead of ending in a hard edge
-  const mk = tf && lampGeo ? "radial-gradient(62% 80% at 50% 50%,#000 62%,transparent 100%)" : "";
+  canvas.style.transform = tf; svg.style.transform = tf; canvas.style.borderRadius = "";
+  // the shifted room fades softly into the dark instead of ending in a hard edge
+  const mk = tf ? "linear-gradient(to bottom,transparent,#000 7%,#000 93%,transparent),linear-gradient(to right,transparent,#000 24%,#000 76%,transparent)" : "";
   canvas.style.webkitMaskImage = mk; canvas.style.maskImage = mk;
+  canvas.style.webkitMaskComposite = tf ? "source-in" : ""; canvas.style.maskComposite = tf ? "intersect" : "";
 }
 function closeSheet(fromY) {
   sheetOpen = false;
@@ -1642,7 +1658,7 @@ function closeSheet(fromY) {
 // swipe the menu down to close it (from the handle anytime, or anywhere once it's scrolled to the top)
 let drag = null;
 sheet.addEventListener("touchstart", e => {
-  if (!sheetOpen || e.touches.length !== 1) return;
+  if (true || !sheetOpen || e.touches.length !== 1) return;
   const onGrab = e.target.closest(".grab");
   if (e.target.closest(".cbtn") || e.target.closest(".lbar")) return;
   if (!onGrab && (sheet.scrollTop > 0 || e.target.closest("input"))) return;
@@ -1672,7 +1688,7 @@ function endDrag() {
 }
 sheet.addEventListener("touchend", endDrag);
 sheet.addEventListener("touchcancel", endDrag);
-controls.querySelectorAll(".ctl").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
+controls.querySelectorAll(".ctl[data-card]").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
 function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
 $("#swSound").onclick = () => setSound(!soundOn);
 $("#swCue").onclick = () => {
@@ -1680,7 +1696,7 @@ $("#swCue").onclick = () => {
   if (!cueOn) cueEl.style.opacity = 0; else if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
   syncUI();
 };
-[...$("#viewSeg").children].forEach(b => b.onclick = () => setView(b.dataset.v));
+$("#viewBtn").addEventListener("click", e => { e.stopPropagation(); setView(viewSel === "lamp" ? "full" : "lamp"); });
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
 [...$("#modeSeg").children].forEach(b => b.onclick = () => { lightMode = b.dataset.m; store.set("lightMode", lightMode); syncUI(); });
@@ -2022,7 +2038,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v22 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v23 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
