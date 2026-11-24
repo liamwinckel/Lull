@@ -1099,7 +1099,8 @@ function flowAt(x, y) {
 const relax = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 // ---- shake & tilt: tip the phone and the wax drifts downhill; give it a shake and it sloshes around
-let motionOn = store.get("motion", true), motionSens = store.get("motionSens", 0.5), tiltX = 0, tiltY = 0, tiltS = 0, tiltSY = 0, lastShake = 0, motionOK = false, gPrev = null, jerkS = 0;
+if (!store.get("motionReset1", false)) { store.set("motion", false); store.set("motionReset1", true); }   // off by default
+let motionOn = store.get("motion", false), motionSens = store.get("motionSens", 0.5), tiltX = 0, tiltY = 0, tiltS = 0, tiltSY = 0, lastShake = 0, motionOK = false, gPrev = null, jerkS = 0;
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const mSens = () => Math.pow(4, motionSens * 2 - 1);   // 1/4x .. 4x, 1x in the middle
 function onMotion(e) {
@@ -1125,11 +1126,17 @@ function onMotion(e) {
   }
   gPrev = [gI.x, gI.y, gI.z || 0];
 }
+let motionHeard = false, motionListening = false;
+function listenMotion() {
+  if (motionListening) return; motionListening = true;
+  addEventListener("devicemotion", e => { motionHeard = true; motionOK = true; onMotion(e); });
+}
 function askMotion() {
+  listenMotion();
   if (motionOK) return;
   const D = window.DeviceMotionEvent;
-  if (D && typeof D.requestPermission === "function") D.requestPermission().then(r => { if (r === "granted") { motionOK = true; addEventListener("devicemotion", onMotion); } }).catch(() => {});
-  else if (D) { motionOK = true; addEventListener("devicemotion", onMotion); }
+  if (D && typeof D.requestPermission === "function") D.requestPermission().then(r => { if (r === "granted") motionOK = true; }).catch(() => {});
+  else motionOK = true;
 }
 function step(dt) {
   // tilt: a gentle sideways pull toward the lower side (with a small dead zone so a slightly crooked hand does nothing)
@@ -2246,7 +2253,7 @@ $("#swSound").onclick = () => setSound(!soundOn);
 $("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else { tiltX = 0; tiltY = 0; } syncUI(); };
 $("#motionSens").addEventListener("input", e => { motionSens = +e.target.value; store.set("motionSens", motionSens); });
 // iOS only lets a tap ask for motion access: if it hasn't been granted yet, try again on the next touch
-document.addEventListener("touchend", () => { if (motionOn && started && !motionOK) askMotion(); }, { passive: true });
+canvas.addEventListener("touchend", () => { if (motionOn && started && !motionOK && !motionHeard) askMotion(); }, { passive: true });
 $("#swCue").onclick = () => {
   cueOn = !cueOn; store.set("cue", cueOn);
   if (!cueOn) cueEl.style.opacity = 0; else if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
@@ -2624,7 +2631,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v50 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v51 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -2633,7 +2640,7 @@ $("#start").addEventListener("click", () => {
   started = true;
   $("#start").classList.add("gone");
   audio.init(); if (soundOn) audio.resume(); audio.level();
-  if (motionOn) askMotion();
+  if (motionOn) listenMotion();
   keepAwake(); wake(); heal();
   if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
 });
