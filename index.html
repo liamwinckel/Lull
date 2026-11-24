@@ -463,7 +463,7 @@ const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
 precision highp float;
 uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
-uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode, uWarm, uGlow, uVig; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode, uWarm, uGlow, uVig, uMergeK; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
@@ -474,13 +474,17 @@ float prof(float s){ s=clamp(s,0.,1.);
   if(uProfT>0.5) return max(uProf.x, sqrt(max(0.,1.-pow(2.*s-1.,2.)))); return s<uProf.y ? uProf.x+(1.-uProf.x)*sin(s/uProf.y*1.5708) : 1.-(1.-uProf.z)*pow((s-uProf.y)/(1.-uProf.y),uProf.w); }
 void main(){
   vec2 p=gl_FragCoord.xy; float f=0., h=0., gw=0., gh=0., rw=0., sh=0., fs=0., wf=0., wh=0.; vec2 grad=vec2(0.);
+  vec4 G1=vec4(0.), S1=vec4(0.), M1=vec4(0.), D1=vec4(0.); vec2 Gg=vec2(0.), Sg=vec2(0.), Mg=vec2(0.), Dg=vec2(0.);
   vec2 pd=p-uBulb;
   vec2 pw=uBulb+pd*vec2(0.34,0.6);            // where this spot on the wall looks back into the lamp, from the bulb
   for(int i=0;i<${MAX};i++){ if(i>=uN) break; vec4 b=uB[i]; vec2 d=p-b.xy;
     float dd=dot(d,d), R2=b.z*b.z*3.61;
     float k=max(0.,1.-dd/R2); float v=k*k*k*2.646;
-    float mk=floor(b.w/2.), hb=b.w-mk*2., gwt=1.-mk/63.;
-    f+=v; h+=v*hb; rw+=v*b.z*gwt; grad+=d*(-2.646*6.*k*k/R2)*gwt;
+    float wv=b.w, dyf=step(255.5,wv); wv-=256.*dyf; float ng=step(127.5,wv); wv-=128.*ng;
+    float mk=floor(wv/2.), hb=wv-mk*2., gwt=1.-mk/63.;
+    if(ng>0.5){ S1+=G1; Sg+=Gg; if(G1.x>M1.x){ M1=G1; Mg=Gg; } G1=vec4(0.); Gg=vec2(0.); }
+    vec4 c1=vec4(v, v*hb, v*b.z*gwt, 0.); vec2 cg=d*(-2.646*6.*k*k/R2)*gwt;
+    if(dyf>0.5){ D1+=c1; Dg+=cg; } else { G1+=c1; Gg+=cg; }
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb;
     // wax shading wax: a blob closer to the bulb shades the parts of the wax just above it
     vec2 bd=b.xy-uBulb; float bl=max(length(bd),1.); vec2 bu=bd/bl; float al=dot(pd,bu)-bl;
@@ -491,6 +495,8 @@ void main(){
     }
     if(uLamp>0.5){ vec2 dw=pw-b.xy; float vw=exp(-dot(dw,dw)/(z2*5.))*gwt*b.z/uRes.y*14.; wf+=vw; wh+=vw*hb; }
   }
+  S1+=G1; Sg+=Gg; if(G1.x>M1.x){ M1=G1; Mg=Gg; }
+  { vec4 F1=mix(M1,S1,uMergeK)+D1; f=F1.x; h=F1.y; rw=F1.z; grad=mix(Mg,Sg,uMergeK)+Dg; }
   float lf=0.3+1.4*uLight, S=uShadow, T=uTrans;
   float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
   float y=p.y/uRes.y, inside=1., hw=1., dxn=0.;
@@ -600,7 +606,7 @@ gl.linkProgram(prog); gl.useProgram(prog);
 const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uWarm", "uGlow", "uVig", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uWarm", "uGlow", "uVig", "uMergeK", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
 const appEl = $("#app");
@@ -888,7 +894,7 @@ const contacts = new Set();
 const touchTime = new Map();
 const NEVER = 0.06;
 const mergeAfter = () => absorb < NEVER ? Infinity : 0.1 + 22 * Math.pow(1 - (absorb - NEVER) / (1 - NEVER), 3);   // top = merges on contact
-const cushion = () => 0.42 * Math.pow(1 - absorb, 2);   // low settings keep a little film of liquid between blobs so they can't visually fuse
+const cushion = () => 0.1 * Math.pow(1 - absorb, 2);   // contact right at their visible edges: they touch and press, no invisible gap
 const mergeCap = () => absorb > 0.9 ? Infinity : u * RANGE()[1] * (1.6 + 4 * absorb * absorb);   // size limit loosens, gone at the top
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
@@ -1121,12 +1127,12 @@ function step1(dt) {
         // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
         const ready = clamp((touchTime.get(a.seed + c.seed) || 0) / Math.max(mergeAfter(), 0.001), 0, 1);
-        const firm = (0.6 + 1.4 * Math.pow(1 - absorb, 2)) * (1 - ready), over = (rr - d) / rr;
+        const firm = (0.6 + 0.5 * Math.pow(1 - absorb, 2)) * (1 - ready), over = (rr - d) / rr;
         const f = over * over * 900 * g * firm * dt;
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
         a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
         // low Merging: even when squeezed together at the bottom, they keep a thin gap and never fuse
-        const hold = clamp(1 - absorb / 0.3, 0, 1) * (1 - ready);
+        const hold = 0;
         if (hold > 0 && d < rr * 0.87) { const corr = (rr * 0.87 - d) * hold * relax(8, dt); a.x -= nx * corr * wa; a.y -= ny * corr * wa; c.x += nx * corr * (1 - wa); c.y += ny * corr * (1 - wa); }
       }
     }
@@ -1225,7 +1231,7 @@ function particleStep(dt, bs) {
     if (!q.touched) q.touchT = Math.max(0, (q.touchT || 0) - dt * 0.6);   // contact memory fades, it doesn't reset
     q.touched = false;
     for (const b of big) {
-      const hold = clamp(1 - absorb / 0.3, 0, 1);
+      const hold = 0;
       const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * (0.95 + 0.22 * hold) + q.r * (0.7 + 1.1 * hold);
       if (d >= R) continue;
       const nx = dx / d, ny = dy / d;
@@ -1240,7 +1246,7 @@ function particleStep(dt, bs) {
       const kv = relax(2, dt); q.vx += (b.vx - q.vx) * kv * ready; q.vy += (b.vy - q.vy) * kv * ready;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
       if (vn < 0) { q.vx -= nx * vn * relax(5, dt) * firm; q.vy -= ny * vn * relax(5, dt) * firm; }   // can't plough through
-      if (absorb < NEVER && d < R) { const k2 = d + (R - d) * relax(6, dt); q.x = b.x + nx * k2; q.y = b.y + ny * k2; }   // at the bottom, droplets rest against blobs, never inside
+   // at the bottom, droplets rest against blobs, never inside
     }
   }
   for (const q of blobs) if (q.p && q.excess && !q.dying && big.length) {
@@ -1363,8 +1369,9 @@ function render() {
       const depth = b.off ? clamp(Math.hypot(b.off[0], b.off[1]) / Math.max(b.dying.r * 0.7, 1), 0, 1) : 1;
       hv += 2 * Math.round(63 * (1 - clamp(b.r / b.r0, 0, 1) * depth));
     }
+    const dyingFlag = b.dying && b.dying !== b ? 256 : 0;
     if (b.p) {
-      if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv; n++; }
+      if (n < MAX) { arr[n * 4] = b.x * S; arr[n * 4 + 1] = (H - b.y) * S; arr[n * 4 + 2] = b.r * bs * S; arr[n * 4 + 3] = hv + (dyingFlag || 128); n++; }
       continue;
     }
     const sp = Math.hypot(b.vx, b.vy), stv = Math.min(0.3, sp / (60 * g) * 0.16);
@@ -1389,13 +1396,13 @@ function render() {
         ox = on2 * nx + ot2 * tx; oy = on2 * ny + ot2 * ty;
         lr *= 1 - 0.28 * sp2;
       }
-      arr[n * 4] = (b.x + ox) * S; arr[n * 4 + 1] = (H - b.y - oy) * S; arr[n * 4 + 2] = lr * bs * S; arr[n * 4 + 3] = hv; n++;
+      arr[n * 4] = (b.x + ox) * S; arr[n * 4 + 1] = (H - b.y - oy) * S; arr[n * 4 + 2] = lr * bs * S; arr[n * 4 + 3] = hv + (dyingFlag || (i === 0 ? 128 : 0)); n++;
     }
   }
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
   gl.uniform4fv(U.uB, arr); gl.uniform1i(U.uN, n);
   gl.uniform3fv(U.uHot, tone(cur.hot)); gl.uniform3fv(U.uCool, tone(cur.cool));
-  gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
+  gl.uniform1f(U.uMergeK, clamp((absorb - 0.02) / 0.3, 0, 1)); gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
   if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
@@ -2293,7 +2300,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v40 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v41 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
