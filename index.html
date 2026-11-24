@@ -144,9 +144,10 @@
   .catpick b{width:9px;height:9px;border-right:2px solid rgba(255,255,255,.7);border-bottom:2px solid rgba(255,255,255,.7);transform:translateY(-2px) rotate(45deg);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
   .catpick[aria-expanded="true"] b{transform:translateY(2px) rotate(-135deg)}
   .phead{position:relative}
-  .shuffle{position:absolute;right:0;top:10px;display:flex;align-items:center;gap:6px;height:34px;padding:0 13px 0 10px;border:none;border-radius:17px;color:#fff;font-size:13px;font-weight:600;
+  .shuffle{position:absolute;right:0;top:8px;display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:none;border-radius:50%;color:#fff;font-size:13px;font-weight:600;
     background:linear-gradient(135deg,color-mix(in srgb,var(--cool) 55%,rgba(255,255,255,.1)),color-mix(in srgb,var(--hot) 55%,rgba(255,255,255,.1)));box-shadow:0 4px 16px color-mix(in srgb,var(--hot) 30%,transparent)}
-  .shuffle svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+  .phead .chead{padding-right:46px}
+  .shuffle svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
   .shuffle.spin svg{transform:rotate(360deg)}
   .catpick.static{pointer-events:none}
   .catpick.static b{opacity:0}
@@ -354,6 +355,7 @@
     <div class="row"><span>Flow speed</span><input type="range" id="speed" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Wobble</span><input type="range" id="wobble" min="0" max="1" step="0.01"></div>
     <div class="row" style="margin-top:6px"><span>Shake &amp; tilt</span><button class="switch" id="swMotion" aria-label="Shake to stir and tilt to drift"></button></div>
+    <div class="row" id="motionRow"><span>Motion sensitivity</span><input type="range" id="motionSens" min="0" max="1" step="0.01"></div>
   </section>
 
   <section class="card" data-card="lamp">
@@ -401,7 +403,7 @@
 
   <section class="card" data-card="presets">
     <div class="phead">
-      <button class="shuffle" id="shuffleBtn" aria-label="Shuffle a random look"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2.9 4.3 2.6l2.4 4.8c1.1 1.7 2.3 2.6 4.3 2.6H21M17.5 14l3.5 3-3.5 3M3 17h3.5c1.3 0 2.3-.4 3.1-1.1M13.4 8.1c.8-.7 1.8-1.1 3.1-1.1H21M17.5 4l3.5 3-3.5 3"/></svg><span>Shuffle</span></button>
+      <button class="shuffle" id="shuffleBtn" aria-label="Shuffle a random look"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2.9 4.3 2.6l2.4 4.8c1.1 1.7 2.3 2.6 4.3 2.6H21M17.5 14l3.5 3-3.5 3M3 17h3.5c1.3 0 2.3-.4 3.1-1.1M13.4 8.1c.8-.7 1.8-1.1 3.1-1.1H21M17.5 4l3.5 3-3.5 3"/></svg></button>
       <div class="chead"><span>Presets</span><span id="presetHint">a library of looks · tap to try one</span></div>
       <div class="seg two" id="presetTabs"><button data-p="lib">Library</button><button data-p="mine">My presets</button></div>
       <button class="catpick" id="catPick" aria-expanded="false"><i id="catSw"></i><span id="catName">All looks</span><em id="catCount"></em><b aria-hidden="true"></b></button>
@@ -1097,25 +1099,31 @@ function flowAt(x, y) {
 const relax = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 // ---- shake & tilt: tip the phone and the wax drifts downhill; give it a shake and it sloshes around
-let motionOn = store.get("motion", true), tiltX = 0, tiltS = 0, lastShake = 0, motionOK = false;
+let motionOn = store.get("motion", true), motionSens = store.get("motionSens", 0.5), tiltX = 0, tiltY = 0, tiltS = 0, tiltSY = 0, lastShake = 0, motionOK = false, gPrev = null, jerkS = 0;
 const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const mSens = () => Math.pow(4, motionSens * 2 - 1);   // 1/4x .. 4x, 1x in the middle
 function onMotion(e) {
   if (!motionOn || !started) return;
-  const gI = e.accelerationIncludingGravity, a = e.acceleration;
-  if (gI && gI.x != null) {
-    let x = gI.x / 9.81; if (!IOS) x = -x;          // + = the right side is lower
-    const ang = screen.orientation ? screen.orientation.angle : (window.orientation || 0);
-    if (ang === 90 || ang === -90 || ang === 270) x = (IOS ? 1 : -1) * (gI.y / 9.81) * (ang === 90 ? -1 : 1);
-    tiltX = clamp(x, -1, 1);
-  }
-  if (a && a.x != null) {
-    const mag = Math.hypot(a.x, a.y, a.z || 0), now = performance.now();
-    if (mag > 13 && now - lastShake > 90) {
+  const gI = e.accelerationIncludingGravity; if (!gI || gI.x == null) return;
+  const sg = IOS ? 1 : -1;
+  let gx = sg * gI.x / 9.81, gy = -sg * gI.y / 9.81;   // screen space: +x right side down, +y bottom down (upright = +1)
+  const ang = screen.orientation ? screen.orientation.angle : (window.orientation || 0);
+  if (ang === 90) [gx, gy] = [-gy, gx]; else if (ang === 270 || ang === -90) [gx, gy] = [gy, -gx];
+  tiltX = clamp(gx, -1, 1); tiltY = clamp(gy, -1, 1);
+  // shake: how sharply the reading jumps between samples (works even where pure acceleration isn't reported)
+  if (gPrev) {
+    const j = Math.hypot(gI.x - gPrev[0], gI.y - gPrev[1], (gI.z || 0) - gPrev[2]);
+    jerkS = jerkS * 0.6 + j * 0.4;
+    const thr = 6 / mSens(), now = performance.now();
+    if (jerkS > thr && now - lastShake > 70) {
       lastShake = now;
-      const sx = (IOS ? 1 : -1) * a.x, sy = (IOS ? -1 : 1) * a.y, k = Math.min(mag, 40) * 55;
-      for (let i = 0; i < 3; i++) stir(tank.x0 + Math.random() * tank.w, tank.y0 + Math.random() * tank.h, sx / mag * k + (Math.random() - 0.5) * k * 0.6, sy / mag * k + (Math.random() - 0.5) * k * 0.6, 0.05);
+      const dx = sg * (gI.x - gPrev[0]), dy = -sg * (gI.y - gPrev[1]), m = Math.hypot(dx, dy) || 1;
+      const k = Math.min(jerkS / thr, 4) * 900 * Math.sqrt(mSens());
+      for (let i = 0; i < 4; i++) stir(tank.x0 + Math.random() * tank.w, tank.y0 + Math.random() * tank.h,
+        -dx / m * k + (Math.random() - 0.5) * k * 0.7, -dy / m * k + (Math.random() - 0.5) * k * 0.7, 0.05);
     }
   }
+  gPrev = [gI.x, gI.y, gI.z || 0];
 }
 function askMotion() {
   if (motionOK) return;
@@ -1125,8 +1133,16 @@ function askMotion() {
 }
 function step(dt) {
   // tilt: a gentle sideways pull toward the lower side (with a small dead zone so a slightly crooked hand does nothing)
-  tiltS += ((Math.abs(tiltX) < 0.08 || !motionOn ? 0 : tiltX - Math.sign(tiltX) * 0.08) - tiltS) * Math.min(1, dt * 3);
-  if (tiltS) { const f = tiltS * 120 * g * dt; for (const b of blobs) if (!b.dying) b.vx += f * (b.p ? 1.3 : 1); for (const b of bubbles) b.vx += f * 0.5; }
+  const dz = 0.05 / mSens();
+  tiltS += ((Math.abs(tiltX) < dz || !motionOn ? 0 : tiltX - Math.sign(tiltX) * dz) - tiltS) * Math.min(1, dt * 4);
+  // tipping it forward/back (phone flatter) nudges things up or down a little too
+  const fy = motionOn ? clamp(1 - Math.max(tiltY, 0), 0, 1) * Math.sign(tiltY || 1) : 0;
+  tiltSY += ((motionOn ? (tiltY < 0 ? -0.6 : 0) : 0) - tiltSY) * Math.min(1, dt * 3);
+  if (tiltS || tiltSY) {
+    const f = tiltS * 420 * g * dt * mSens(), fv = tiltSY * 220 * g * dt * mSens();
+    for (const b of blobs) if (!b.dying) { b.vx += f * (b.p ? 1.3 : 1); b.vy += fv; }
+    for (const b of bubbles) b.vx += f * 0.6;
+  }
   // sub-step for stable springs when a frame runs long
   if (dt > 0.025) { const n = Math.ceil(dt / 0.02); for (let i = 0; i < n; i++) step1(dt / n); }
   else step1(dt);
@@ -1877,6 +1893,7 @@ function syncUI() {
   $("#swSound").classList.toggle("on", soundOn);
   $("#swCue").classList.toggle("on", cueOn);
   $("#swMotion").classList.toggle("on", motionOn);
+  $("#motionSens").value = motionSens; $("#motionRow").style.display = motionOn ? "" : "none";
   $("#vol").value = volume;
   [...$("#breathSeg").children].forEach(b => b.classList.toggle("on", b.dataset.id === breathId));
   { const t = themeById(themeId), now = { hot: t.hot, cool: t.cool, liq: t.liqBot };
@@ -2226,7 +2243,10 @@ sheet.addEventListener("touchcancel", endDrag);
 controls.querySelectorAll(".ctl[data-card]").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
 function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
 $("#swSound").onclick = () => setSound(!soundOn);
-$("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else tiltX = 0; syncUI(); };
+$("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else { tiltX = 0; tiltY = 0; } syncUI(); };
+$("#motionSens").addEventListener("input", e => { motionSens = +e.target.value; store.set("motionSens", motionSens); });
+// iOS only lets a tap ask for motion access: if it hasn't been granted yet, try again on the next touch
+document.addEventListener("touchend", () => { if (motionOn && started && !motionOK) askMotion(); }, { passive: true });
 $("#swCue").onclick = () => {
   cueOn = !cueOn; store.set("cue", cueOn);
   if (!cueOn) cueEl.style.opacity = 0; else if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
@@ -2356,6 +2376,7 @@ function drawFx(b, t) {
     case "speed": { for (let i = 0; i < 6; i++) { const x = ((t * (0.05 + 0.5 * v) + i / 6) % 1) * fw; circ(x, H / 2 + Math.sin(i * 2) * 8, 3, "rgba(255,255,255,.5)"); } break; }
     case "wobble": { c.fillStyle = "rgba(255,255,255,.28)"; c.beginPath(); for (let a = 0; a <= 6.3; a += 0.2) { const rr = 11 * (1 + (0.04 + 0.3 * v) * Math.sin(a * 3 + t * 2)), x = fw - 26 + Math.cos(a) * rr, y = H / 2 + Math.sin(a) * rr; a ? c.lineTo(x, y) : c.moveTo(x, y); } c.fill(); break; }
     case "dim": { c.fillStyle = `rgba(0,0,0,${0.7 * v})`; c.fillRect(0, 0, fw, H); break; }
+    case "motionSens": { const a = Math.sin(t * (1 + 6 * v)) * (0.1 + 0.5 * v); c.save(); c.translate(fw - 24, H / 2); c.rotate(a); c.strokeStyle = "rgba(255,255,255,.6)"; c.lineWidth = 1.6; c.strokeRect(-6, -10, 12, 20); c.restore(); break; }
     case "lampGH": case "lampCS": case "lampCV": break;
     case "lampW": { const w = 6 + v * 18; c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fw - 20 - w, H / 2); c.lineTo(fw - 20 + w * 0.2, H / 2); c.stroke(); break; }
     default: { // volume, ambience: a soft moving sound wave
@@ -2603,7 +2624,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v49 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v50 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
