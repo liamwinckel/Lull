@@ -155,6 +155,8 @@
   .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
+  #dimmer{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:4;transition:opacity .6s ease}
+  #controls,#sheet,#toast{z-index:6}
   #vpick.show{pointer-events:auto}
   #vpanel{position:absolute;right:14px;top:calc(env(safe-area-inset-top) + 64px);bottom:calc(env(safe-area-inset-bottom) + 96px);width:92px;
     display:flex;flex-direction:column;gap:10px;padding:10px;box-sizing:border-box;border-radius:30px;
@@ -252,6 +254,8 @@
     <div class="chips" id="chips"></div>
     <div class="chead" style="margin:10px 0 4px;font-size:13px"><span>Liquid</span></div>
     <div class="liqs" id="liqs"></div>
+    <div class="row"><span>Colour drift</span><input type="range" id="drift" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Vibrance</span><input type="range" id="vib" min="0" max="1" step="0.01"></div>
     <div class="custom">
       <button class="cbtn" data-k="hot"><i></i>Hot</button>
       <button class="cbtn" data-k="cool"><i></i>Cool</button>
@@ -272,6 +276,9 @@
     <div class="row"><span>Brightness</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Translucency</span><input type="range" id="trans" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Bulb warmth</span><input type="range" id="warm" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Halo</span><input type="range" id="glow" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Vignette</span><input type="range" id="vig" min="0" max="1" step="0.01"></div>
   </section>
 
   <section class="card" data-card="lava">
@@ -281,6 +288,8 @@
     <div class="row"><span>Stirring</span><input type="range" id="stirk" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Bubbles</span><input type="range" id="bub" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Particles</span><input type="range" id="part" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Flow speed</span><input type="range" id="speed" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Wobble</span><input type="range" id="wobble" min="0" max="1" step="0.01"></div>
   </section>
 
   <section class="card" data-card="lamp">
@@ -295,7 +304,12 @@
   </section>
 
   <section class="card" data-card="calm">
-    <div class="chead"><span>Breathing</span></div>
+    <div class="chead"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
+    <div class="seg" id="sleepSeg" style="grid-template-columns:repeat(4,1fr)">
+      <button data-m="0">Off</button><button data-m="15">15 m</button><button data-m="30">30 m</button><button data-m="60">1 h</button>
+    </div>
+    <div class="row"><span>Dim</span><input type="range" id="dim" min="0" max="1" step="0.01"></div>
+    <div class="chead" style="margin-top:14px"><span>Breathing</span></div>
     <div class="seg" id="breathSeg"></div>
     <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
     <div class="chead" style="margin-top:14px"><span>Sound</span></div>
@@ -320,6 +334,7 @@
   </section>
 </div>
 
+<div id="dimmer" aria-hidden="true"></div>
 <div id="vpick" aria-hidden="true"><div id="vpanel">
   <div class="vtabs"><button data-k="hot" aria-label="Hot"></button><button data-k="cool" aria-label="Cool"></button><button data-k="liq" aria-label="Liquid"></button></div>
   <div class="vname" id="vname">Hot</div>
@@ -417,7 +432,7 @@ const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
 precision highp float;
 uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
-uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode, uWarm, uGlow, uVig; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
@@ -456,7 +471,7 @@ void main(){
     inside=(1.-smoothstep(hw-1.2,hw+0.8,dx))*vy;
   }
   vec3 waxc=mix(uCool,uHot,heat);
-  vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25);
+  vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25)*(uWarm<0.5?mix(vec3(0.62,0.82,1.25),vec3(1.),uWarm*2.):mix(vec3(1.),vec3(1.3,0.8,0.45),uWarm*2.-1.));
   vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=uMode>0.5?tb/db:uLdir;
   float att=uMode>0.5?1.25/(1.+pow(db/(uRes.y*0.6),2.)):1.;
   // liquid: its gradient, a gentle glow rising from the bulb, and the wax's own glow
@@ -466,7 +481,7 @@ void main(){
   float bspot=exp(-db/(uRes.y*0.2)), bwide=exp(-db/(uRes.y*0.55));
   liq+=bulbc*bulbI*(0.85*bspot+0.3*bwide+0.12*exp(-y*3.));
   float gsm=1.-exp(-gw*0.9);    // soft, saturating halo: no plateau, no hard rim
-  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight);
+  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight)*uGlow*2.;
   if(uMode<0.5) liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
   // the wax's shape: outward direction, how close to the edge (rho), how thick
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
@@ -540,7 +555,7 @@ void main(){
     room+=lampc*pool*0.08+mix(uCool,uHot,wht)*wsh*pool*(0.2+0.18*T);
     col=mix(room,col,inside);
   }
-  vec2 vq=p/uRes-0.5; col*=1.-(0.45+0.4*S)*dot(vq,vq);
+  vec2 vq=p/uRes-0.5; col*=1.-(0.05+1.6*uVig)*(0.6+0.5*S)*dot(vq,vq);
   col+=(hash(p+fract(uTime))-0.5)*(2./255.);
   gl_FragColor=vec4(col,1.);
 }`;
@@ -552,7 +567,7 @@ gl.linkProgram(prog); gl.useProgram(prog);
 const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uWarm", "uGlow", "uVig", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
 const appEl = $("#app");
@@ -1283,7 +1298,17 @@ function matchStrip() {
   document.querySelector("meta[name=theme-color]").setAttribute("content", rgb);
 }
 const arr = new Float32Array(MAX * 4), barr = new Float32Array(24 * 4);
-let rdt = 0.016;
+let rdt = 0.016, audioTick2 = 0;
+// slow hue drift + vibrance, done in YIQ so brightness stays put
+const _tc = [0, 0, 0];
+function tone(c) {
+  const a = t * ex.drift * 0.06, sat = ex.vib < 0.5 ? 0.25 + ex.vib * 1.5 : 1 + (ex.vib - 0.5) * 1.1;
+  if (a === 0 && sat === 1) return c;
+  const y = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2], i0 = 0.596 * c[0] - 0.274 * c[1] - 0.322 * c[2], q0 = 0.211 * c[0] - 0.523 * c[1] + 0.312 * c[2];
+  const ca = Math.cos(a), sa = Math.sin(a), i = (i0 * ca - q0 * sa) * sat, q = (i0 * sa + q0 * ca) * sat;
+  _tc[0] = clamp(y + 0.956 * i + 0.621 * q, 0, 1); _tc[1] = clamp(y - 0.272 * i - 0.647 * q, 0, 1); _tc[2] = clamp(y - 1.106 * i + 1.703 * q, 0, 1);
+  return _tc.slice();
+}
 function render() {
   const bs = 1 + 0.14 * breathLvl;
   let n = 0;
@@ -1306,12 +1331,12 @@ function render() {
     sx = b.ssx; sy = b.ssy;
     const st = Math.min(0.42, Math.hypot(sx, sy)), ux = st > 0.001 ? sx / st : 0, uy = st > 0.001 ? sy / st : 1;
     for (let i = 0; i < 3 && n < MAX; i++) {
-      const s = b.seed, ang = s + i * 2.094 + 0.6 * Math.sin(t * 0.045 + s * 0.7 + i);
-      const dist = b.r * (0.21 + 0.12 * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
+      const wb = ex.wobble * 2, s = b.seed, ang = s + i * 2.094 + 0.6 * wb * Math.sin(t * 0.045 + s * 0.7 + i);
+      const dist = b.r * (0.21 * (0.55 + 0.45 * wb) + 0.12 * wb * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
       let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
       const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
       ox = al2 * ux - pe2 * uy; oy = al2 * uy + pe2 * ux;
-      let lr = b.r * 0.74 * (1 + 0.08 * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
+      let lr = b.r * (0.74 + 0.05 * (1 - wb)) * (1 + 0.08 * wb * Math.sin(t * 0.12 + s * 2.1 + i * 1.7));
       const sq = Math.hypot(b.qx || 0, b.qy || 0);
       if (sq > 0.004) {
         const nx = b.qx / sq, ny = b.qy / sq, tx = -ny, ty = nx, sp2 = sq;
@@ -1326,7 +1351,8 @@ function render() {
   }
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
   gl.uniform4fv(U.uB, arr); gl.uniform1i(U.uN, n);
-  gl.uniform3fv(U.uHot, cur.hot); gl.uniform3fv(U.uCool, cur.cool);
+  gl.uniform3fv(U.uHot, tone(cur.hot)); gl.uniform3fv(U.uCool, tone(cur.cool));
+  gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
   if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
@@ -1351,7 +1377,14 @@ function render() {
 
 let last = performance.now(), audioTick = 0;
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  const rdt0 = Math.min(0.05, (now - last) / 1000); last = now;
+  const spd = ex.speed < 0.5 ? 0.35 + ex.speed * 1.3 : 1 + (ex.speed - 0.5) * 1.6;
+  const dt = rdt0 * spd; t += dt;
+  // wind-down timer: over ~40 s the lamp dims to dark and the sound fades away; a touch brings it back
+  if (sleepAt && Date.now() > sleepAt && !sleepWake) sleepFade = Math.min(1, sleepFade + rdt0 / 40);
+  else if (sleepFade > 0) { sleepFade = Math.max(0, sleepFade - rdt0 / 2.5); if (!sleepFade) sleepWake = false; }
+  { const dv = Math.max(dimAmt * 0.8, sleepFade * 0.97); if (Math.abs(dv - dimShown) > 0.004) { dimShown = dv; $("#dimmer").style.opacity = dv.toFixed(3); } }
+  if (sleepFade > 0 && (audioTick2 += rdt0) > 0.4) { audioTick2 = 0; audio.level(); }
   const bt = breathTarget(dt);
   breathLvl += (bt - breathLvl) * Math.min(1, dt * 3);
   const k = Math.min(1, dt * 1.6);
@@ -1398,7 +1431,7 @@ const audio = (() => {
   }
   function level() {
     if (!AC) return;
-    master.gain.setTargetAtTime(soundOn ? volume * 0.9 : 0, AC.currentTime, 0.5);
+    master.gain.setTargetAtTime(soundOn ? volume * 0.9 * (1 - sleepFade) : 0, AC.currentTime, 0.5);
     ambBus.gain.setTargetAtTime(ambVol * 1.4, AC.currentTime, 0.3);
     popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
     toneBus.gain.setTargetAtTime(toneVol * 1.4, AC.currentTime, 0.1);
@@ -1486,7 +1519,11 @@ function showToast(txt) {
 const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
-const PRESET_KEYS = () => ({ theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
+// extra look & feel settings (each 0..1; 0.5 is the neutral middle where that makes sense)
+const EX_DEF = { drift: 0, vib: 0.5, warm: 0.5, glow: 0.5, vig: 0.5, speed: 0.5, wobble: 0.5 };
+const ex = {}; for (const k in EX_DEF) ex[k] = store.get(k, EX_DEF[k]);
+let dimAmt = store.get("dim", 0), sleepMin = 0, sleepAt = 0, sleepFade = 0, dimShown = -1;
+const PRESET_KEYS = () => ({ ...ex, theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
   particles, style, light, shadow, sound: soundOn, vol: volume,
   ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId, lampMods: { ...lampMods } });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
@@ -1555,6 +1592,7 @@ function applyPreset(p) {
   amount = v.amount ?? amount; absorb = v.absorb ?? absorb; stirSens = v.stir ?? stirSens; bubbleAmt = v.bubbles ?? bubbleAmt;
   particles = v.particles ?? particles; style = v.style ?? style; light = v.light ?? light; shadow = v.shadow ?? shadow;
   volume = v.vol ?? volume;
+  for (const k in EX_DEF) { ex[k] = v[k] ?? EX_DEF[k]; store.set(k, ex[k]); }
   ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; trans = v.trans ?? trans; lightMode = v.lightMode ?? lightMode;
   for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, trans, lightMode })) store.set(k, val); audio.level();
   for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, vol: volume })) store.set(k, val);
@@ -1571,7 +1609,14 @@ function applyPreset(p) {
   renderPresets(); renderFeatured(); syncUI(); showToast(p.name);
 }
 
+function syncEx() {
+  for (const k in EX_DEF) { const el = document.getElementById(k); if (el) el.value = ex[k]; }
+  $("#dim").value = dimAmt;
+  [...$("#sleepSeg").children].forEach(b => b.classList.toggle("on", +b.dataset.m === sleepMin));
+  $("#sleepHint").textContent = sleepMin ? "fades out at " + new Date(sleepAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "fade the lamp and sound out";
+}
 function syncUI() {
+  syncEx();
   renderFrames(); syncLampOpts();
   queueMicrotask(() => BARS.forEach(f => f()));
   { const vb = $("#viewBtn"), lampNow = viewSel === "lamp";
@@ -1738,8 +1783,9 @@ function placeSheet(name) {
   const dockTop = controls.offsetTop, safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 6;
   const btn = controls.querySelector(`.ctl[data-card="${name}"]`), br = btn ? btn.getBoundingClientRect() : null;
   const bx = br ? br.left + br.width / 2 : W / 2;
-  const left = tall ? W - pw - 10 : clamp(bx - pw / 2, 10, W - pw - 10);
-  const rs = sheet.style;
+  const dw = controls.offsetWidth, dl = controls.getBoundingClientRect().left;
+  const left = tall ? W - pw - 10 : dl;
+  const rs = sheet.style; rs.setProperty("--pw", (tall ? pw : dw) + "px");
   rs.setProperty("--sl", left + "px"); rs.setProperty("--sb", (H - dockTop + 10) + "px");
   rs.setProperty("--sh", Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58)) + "px");
   rs.setProperty("--ox", Math.round(bx - left) + "px");
@@ -1932,6 +1978,14 @@ function drawFx(b, t) {
     case "toneVol": {
       c.strokeStyle = `rgba(255,255,255,${0.2 + 0.4 * v})`; c.lineWidth = 1.5; c.beginPath();
       for (let x = 0; x <= fw; x += 2) { const env = Math.exp(-((x / 60 + t * 0.7) % 1) * 3); const y = H / 2 + Math.sin(x * 0.35) * env * (2 + 12 * v); x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); break; }
+    case "drift": { const g2 = c.createLinearGradient(0, 0, W0, 0); for (let k = 0; k <= 6; k++) g2.addColorStop(k / 6, `hsla(${(k * 60 + t * 40 * v) % 360},90%,60%,${0.15 + 0.4 * v})`); c.fillStyle = g2; c.fillRect(0, 0, fw, H); break; }
+    case "vib": { b.fill.style.filter = `saturate(${0.2 + 1.6 * v})`; break; }
+    case "warm": { const g2 = c.createLinearGradient(0, 0, fw, 0); g2.addColorStop(0, "rgba(150,200,255,.35)"); g2.addColorStop(1, `rgba(255,${200 - 90 * v | 0},${120 - 80 * v | 0},${0.2 + 0.4 * v})`); c.fillStyle = g2; c.fillRect(0, 0, fw, H); break; }
+    case "glow": { for (let i = 0; i < 3; i++) { const x = (i + 0.5) / 3 * fw, gg = c.createRadialGradient(x, H / 2, 2, x, H / 2, 8 + 26 * v); gg.addColorStop(0, `rgba(255,240,220,${0.25 + 0.4 * v})`); gg.addColorStop(1, "rgba(255,240,220,0)"); c.fillStyle = gg; c.fillRect(0, 0, fw, H); } break; }
+    case "vig": { const gg = c.createRadialGradient(fw / 2, H / 2, 4, fw / 2, H / 2, Math.max(fw, 40) * 0.7); gg.addColorStop(0, "rgba(0,0,0,0)"); gg.addColorStop(1, `rgba(0,0,0,${0.75 * v})`); c.fillStyle = gg; c.fillRect(0, 0, fw, H); break; }
+    case "speed": { for (let i = 0; i < 6; i++) { const x = ((t * (0.05 + 0.5 * v) + i / 6) % 1) * fw; circ(x, H / 2 + Math.sin(i * 2) * 8, 3, "rgba(255,255,255,.5)"); } break; }
+    case "wobble": { c.fillStyle = "rgba(255,255,255,.28)"; c.beginPath(); for (let a = 0; a <= 6.3; a += 0.2) { const rr = 11 * (1 + (0.04 + 0.3 * v) * Math.sin(a * 3 + t * 2)), x = fw - 26 + Math.cos(a) * rr, y = H / 2 + Math.sin(a) * rr; a ? c.lineTo(x, y) : c.moveTo(x, y); } c.fill(); break; }
+    case "dim": { c.fillStyle = `rgba(0,0,0,${0.7 * v})`; c.fillRect(0, 0, fw, H); break; }
     case "lampW": { const w = 6 + v * 18; c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fw - 20 - w, H / 2); c.lineTo(fw - 20 + w * 0.2, H / 2); c.stroke(); break; }
     default: { // volume, ambience: a soft moving sound wave
       const amb = b.id === "ambVol";
@@ -1946,6 +2000,14 @@ function fxLoop(t) {
 }
 let fxOn = false;
 function startFx() { if (!fxOn) { fxOn = true; requestAnimationFrame(fxLoop); } }
+for (const k in EX_DEF) $("#" + k).addEventListener("input", e => { ex[k] = +e.target.value; store.set(k, ex[k]); });
+$("#dim").addEventListener("input", e => { dimAmt = +e.target.value; store.set("dim", dimAmt); });
+[...$("#sleepSeg").children].forEach(b => b.onclick = () => {
+  sleepMin = +b.dataset.m; sleepAt = sleepMin ? Date.now() + sleepMin * 60000 : 0;
+  if (!sleepMin && sleepFade > 0) sleepWake = true;
+  syncEx();
+});
+let sleepWake = false;
 $("#vol").oninput = e => { volume = +e.target.value; store.set("vol", volume); audio.level(); };
 // Press Hot / Cool / Liquid: a gradient blooms open under your finger, starting where the current colour
 // sits. Slide around to pick (the lava updates live) and lift to set it.
@@ -2110,6 +2172,7 @@ function tap(x, y) {
   audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
 }
 canvas.addEventListener("pointerdown", e => {
+  if (sleepFade > 0.02 && sleepAt && Date.now() > sleepAt) { sleepWake = true; sleepMin = 0; sleepAt = 0; syncEx(); }
   if (!started) return;
   if (sheetOpen) { closeSheet(); return; }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -2159,7 +2222,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v33 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v34 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
