@@ -471,7 +471,8 @@ void main(){
     inside=(1.-smoothstep(hw-1.2,hw+0.8,dx))*vy;
   }
   vec3 waxc=mix(uCool,uHot,heat);
-  vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25)*(uWarm<0.5?mix(vec3(0.62,0.82,1.25),vec3(1.),uWarm*2.):mix(vec3(1.),vec3(1.3,0.8,0.45),uWarm*2.-1.));
+  vec3 wtint=uWarm<0.5?mix(vec3(0.45,0.72,1.45),vec3(1.),uWarm*2.):mix(vec3(1.),vec3(1.55,0.78,0.32),uWarm*2.-1.);
+  vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25)*wtint;
   vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=uMode>0.5?tb/db:uLdir;
   float att=uMode>0.5?1.25/(1.+pow(db/(uRes.y*0.6),2.)):1.;
   // liquid: its gradient, a gentle glow rising from the bulb, and the wax's own glow
@@ -480,8 +481,8 @@ void main(){
   float bulbI=(0.06+0.62*uLight)*mix(0.45,1.,uMode)*(0.93+0.07*sin(uTime*0.6));
   float bspot=exp(-db/(uRes.y*0.2)), bwide=exp(-db/(uRes.y*0.55));
   liq+=bulbc*bulbI*(0.85*bspot+0.3*bwide+0.12*exp(-y*3.));
-  float gsm=1.-exp(-gw*0.9);    // soft, saturating halo: no plateau, no hard rim
-  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight)*uGlow*2.;
+  float gsm=1.-exp(-gw*(0.35+1.6*uGlow));    // soft, saturating halo: no plateau, no hard rim
+  liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight)*uGlow*uGlow*4.;
   if(uMode<0.5) liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
   // the wax's shape: outward direction, how close to the edge (rho), how thick
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
@@ -555,7 +556,8 @@ void main(){
     room+=lampc*pool*0.08+mix(uCool,uHot,wht)*wsh*pool*(0.2+0.18*T);
     col=mix(room,col,inside);
   }
-  vec2 vq=p/uRes-0.5; col*=1.-(0.05+1.6*uVig)*(0.6+0.5*S)*dot(vq,vq);
+  col*=mix(vec3(1.),wtint,0.35);   // warmth colours the whole scene a little, not just the bulb
+  vec2 vq=p/uRes-0.5; col*=clamp(1.-1.2*pow(uVig,1.75)*(0.8+0.4*S)*pow(dot(vq,vq)*2.,1.15),0.,1.);
   col+=(hash(p+fract(uTime))-0.5)*(2./255.);
   gl_FragColor=vec4(col,1.);
 }`;
@@ -849,7 +851,9 @@ const contacts = new Set();
 // Merging slider: touching wax combines once it has been in contact long enough. "Easily" = a moment,
 // lower = longer, "Never" = never. Gentle contact counts fully; a fast glancing bump barely counts.
 const touchTime = new Map();
-const mergeAfter = () => absorb <= 0.001 ? Infinity : 16 * Math.pow(1 - absorb, 2.6);   // Easily = merges on contact
+const NEVER = 0.06;
+const mergeAfter = () => absorb < NEVER ? Infinity : 0.1 + 22 * Math.pow(1 - (absorb - NEVER) / (1 - NEVER), 3);   // top = merges on contact
+const cushion = () => 0.42 * Math.pow(1 - absorb, 2);   // low settings keep a little film of liquid between blobs so they can't visually fuse
 const mergeCap = () => absorb > 0.9 ? Infinity : u * RANGE()[1] * (1.6 + 4 * absorb * absorb);   // size limit loosens, gone at the top
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
@@ -1060,7 +1064,7 @@ function step1(dt) {
         // touch-to-merge, set by the Merging slider
         {
           const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), key = a.seed + c.seed;
-          const reach = (a.r + c.r) * bs * 0.92;   // Merging only decides how willing they are once they touch: no pull, no push
+          const reach = (a.r + c.r) * bs * (0.92 + cushion());   // Merging only decides how willing they are once they touch: no pull, no push
           if (d < reach && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
             const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
             // touching and on the way to merging: they gradually move as one (no tug, no sudden lurch)
@@ -1077,21 +1081,24 @@ function step1(dt) {
         if (regrouping) continue;
         // similar sizes only flow through each other when merging is eager; otherwise they press apart
         // they visibly touch (a neck forms) before pushing; no force at all while apart
-        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * 0.88;
+        const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 0.01, rr = (a.r + c.r) * bs * (0.88 + cushion());
         if (d >= rr) continue;
         // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
         const ready = clamp((touchTime.get(a.seed + c.seed) || 0) / Math.max(mergeAfter(), 0.001), 0, 1);
-        const firm = 0.6 * (1 - ready), over = (rr - d) / rr;   // the same soft contact at every setting
+        const firm = (0.6 + 1.4 * Math.pow(1 - absorb, 2)) * (1 - ready), over = (rr - d) / rr;
         const f = over * over * 900 * g * firm * dt;
         const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
         a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
+        // low Merging: even when squeezed together at the bottom, they keep a thin gap and never fuse
+        const hold = clamp(1 - absorb / 0.3, 0, 1) * (1 - ready);
+        if (hold > 0 && d < rr * 0.87) { const corr = (rr * 0.87 - d) * hold * relax(8, dt); a.x -= nx * corr * wa; a.y -= ny * corr * wa; c.x += nx * corr * (1 - wa); c.y += ny * corr * (1 - wa); }
       }
     }
   }
 
   // after a tap-split, the extra small blobs gently find each other and melt back together
-  if (alive > base && absorb > 0.001) {
+  if (alive > base && absorb >= NEVER) {
     const [ra, rb] = RANGE(), smallR = u * (ra + (rb - ra) * 0.45), maxR = u * rb * 1.45;
     outer:
     for (let i = 0; i < blobs.length; i++) {
@@ -1183,7 +1190,8 @@ function particleStep(dt, bs) {
     if (!q.touched) q.touchT = Math.max(0, (q.touchT || 0) - dt * 0.6);   // contact memory fades, it doesn't reset
     q.touched = false;
     for (const b of big) {
-      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 0.95 + q.r * 0.7;
+      const hold = clamp(1 - absorb / 0.3, 0, 1);
+      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * (0.95 + 0.22 * hold) + q.r * (0.7 + 1.1 * hold);
       if (d >= R) continue;
       const nx = dx / d, ny = dy / d;
       if ((count > target || q.excess) && (q.age > 0.5 || q.excess)) { q.dying = b; count--; break; }   // an extra merges with the blob it touches
@@ -1197,7 +1205,7 @@ function particleStep(dt, bs) {
       const kv = relax(2, dt); q.vx += (b.vx - q.vx) * kv * ready; q.vy += (b.vy - q.vy) * kv * ready;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
       if (vn < 0) { q.vx -= nx * vn * relax(5, dt) * firm; q.vy -= ny * vn * relax(5, dt) * firm; }   // can't plough through
-      if (d < b.r * bs * 0.5 && absorb < 0.001) { q.x = b.x + nx * b.r * bs * 0.5; q.y = b.y + ny * b.r * bs * 0.5; }   // at "Never", never inside
+      if (absorb < NEVER && d < R) { const k2 = d + (R - d) * relax(6, dt); q.x = b.x + nx * k2; q.y = b.y + ny * k2; }   // at the bottom, droplets rest against blobs, never inside
     }
   }
   for (const q of blobs) if (q.p && q.excess && !q.dying && big.length) {
@@ -1302,7 +1310,7 @@ let rdt = 0.016, audioTick2 = 0;
 // slow hue drift + vibrance, done in YIQ so brightness stays put
 const _tc = [0, 0, 0];
 function tone(c) {
-  const a = t * ex.drift * 0.06, sat = ex.vib < 0.5 ? 0.25 + ex.vib * 1.5 : 1 + (ex.vib - 0.5) * 1.1;
+  const a = t * Math.pow(ex.drift, 1.5) * 0.45, sat = ex.vib < 0.5 ? ex.vib * 2 : 1 + (ex.vib - 0.5) * 2.6;
   if (a === 0 && sat === 1) return c;
   const y = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2], i0 = 0.596 * c[0] - 0.274 * c[1] - 0.322 * c[2], q0 = 0.211 * c[0] - 0.523 * c[1] + 0.312 * c[2];
   const ca = Math.cos(a), sa = Math.sin(a), i = (i0 * ca - q0 * sa) * sat, q = (i0 * sa + q0 * ca) * sat;
@@ -1331,7 +1339,7 @@ function render() {
     sx = b.ssx; sy = b.ssy;
     const st = Math.min(0.42, Math.hypot(sx, sy)), ux = st > 0.001 ? sx / st : 0, uy = st > 0.001 ? sy / st : 1;
     for (let i = 0; i < 3 && n < MAX; i++) {
-      const wb = ex.wobble * 2, s = b.seed, ang = s + i * 2.094 + 0.6 * wb * Math.sin(t * 0.045 + s * 0.7 + i);
+      const wb = Math.pow(ex.wobble, 1.4) * 2.64, s = b.seed, ang = s + i * 2.094 + 0.6 * wb * Math.sin(t * 0.045 + s * 0.7 + i);
       const dist = b.r * (0.21 * (0.55 + 0.45 * wb) + 0.12 * wb * Math.sin(t * (0.09 + 0.025 * i) + s * (i + 1.3)));
       let ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
       const al = ox * ux + oy * uy, pe = -ox * uy + oy * ux, al2 = al * (1 + st), pe2 = pe / (1 + st * 0.5);
@@ -1378,7 +1386,7 @@ function render() {
 let last = performance.now(), audioTick = 0;
 function frame(now) {
   const rdt0 = Math.min(0.05, (now - last) / 1000); last = now;
-  const spd = ex.speed < 0.5 ? 0.35 + ex.speed * 1.3 : 1 + (ex.speed - 0.5) * 1.6;
+  const spd = ex.speed < 0.5 ? 0.1 + ex.speed * 1.8 : 1 + (ex.speed - 0.5) * 4;
   const dt = rdt0 * spd; t += dt;
   // wind-down timer: over ~40 s the lamp dims to dark and the sound fades away; a touch brings it back
   if (sleepAt && Date.now() > sleepAt && !sleepWake) sleepFade = Math.min(1, sleepFade + rdt0 / 40);
@@ -2222,7 +2230,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v34 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v35 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
