@@ -706,9 +706,11 @@ function frameSVG(F, geo, opt = {}) {
   const { cx, top, L, gT, gB, hwMax, bottom } = geo, P = F.prof, pr = s => profWith(P, s);
   const hb = hwMax * pr(0), ht = hwMax * pr(1), rim = L * 0.016, id = opt.id || "m";
   const hot = opt.hot || "#ffc24a", neon = F.mat === "neon";
+  // the live lamp's neon takes its colour from CSS (it follows the lava as it changes) and glows via CSS, which iOS draws reliably
+  const nc = opt.live ? "currentColor" : hot, nf = opt.live ? "" : `filter="url(#${id}gl)"`;
   const bT = hb * 1.03, bB = hwMax * (F.baseShape === "pedestal" ? 0.9 : F.baseShape === "block" ? 1.0 : 1.34);
   const ctT = ht * 0.42, ctB = ht * 1.05;
-  const fill = neon ? "none" : `url(#${id}mt)`, stroke = neon ? `stroke="${hot}" stroke-width="${Math.max(1.2, L * 0.004)}" filter="url(#${id}gl)"` : "";
+  const fill = neon ? "none" : `url(#${id}mt)`, stroke = neon ? `stroke="${nc}" stroke-width="${Math.max(1.4, L * 0.0045)}" ${nf}` : "";
   const rimFill = neon ? "none" : `url(#${id}rm)`;
   const stops = (MATS[F.mat] || MATS.chrome).map(([c, o]) => `<stop offset="${o}" stop-color="${c}"/>`).join("");
   const rs = RIMS[F.mat] || RIMS.chrome;
@@ -754,7 +756,7 @@ function frameSVG(F, geo, opt = {}) {
     ${opt.thumb ? `<linearGradient id="${id}lq" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${opt.liqTop}"/><stop offset="1" stop-color="${opt.liqBot}"/></linearGradient>` : ""}
   </defs>
   ${opt.thumb ? `<path d="${glassPath()}" fill="url(#${id}lq)"/><circle cx="${cx - hwMax * 0.15}" cy="${gT + (gB - gT) * 0.62}" r="${hwMax * 0.42}" fill="${hot}" opacity=".9"/><circle cx="${cx + hwMax * 0.22}" cy="${gT + (gB - gT) * 0.3}" r="${hwMax * 0.25}" fill="${hot}" opacity=".8"/>` : `<ellipse cx="${cx}" cy="${bottom}" rx="${bB * 2.4}" ry="${L * 0.05}" fill="url(#${id}pl)"/>`}
-  ${neon ? `<path d="${glassPath()}" fill="none" stroke="${hot}" stroke-opacity=".55" stroke-width="${Math.max(1, L * 0.003)}" filter="url(#${id}gl)"/>` : ""}
+  ${neon ? `<path d="${glassPath()}" fill="none" stroke="${nc}" stroke-opacity=".7" stroke-width="${Math.max(1.1, L * 0.0035)}" ${nf}/>` : ""}
   ${base} fill="${fill}" ${stroke}/>
   ${neon ? "" : `${base} fill="url(#${id}gb)"/>`}
   ${F.baseShape === "block" || neon ? "" : `<rect x="${cx - bB * 1.02}" y="${bottom - rim}" width="${bB * 2.04}" height="${rim}" rx="${rim / 2}" fill="${rimFill}"/>`}
@@ -763,12 +765,32 @@ function frameSVG(F, geo, opt = {}) {
   ${neon ? "" : `${cap} fill="url(#${id}gc)"/>`}
   <rect x="${cx - ht * 1.12}" y="${gT - rim * 0.9}" width="${ht * 2.24}" height="${rim}" rx="${rim / 2}" fill="${rimFill}" ${neon ? stroke : ""}/>`;
 }
+// neon: one bright colour that sums up the lava (mostly the wax, a touch of the liquid), refreshed as it changes
+let neonKey = "", neonTick = 0, neonCol = null;
+function neonGlow(hc, cc) {
+  if (!lampGeo || curFrame().mat !== "neon") { if (neonKey !== "off") { neonKey = "off"; svg.style.filter = ""; svg.style.color = ""; } return; }
+  if (++neonTick % 5 && neonKey) return;
+  const lq = cur.liqBot || [0, 0, 0];
+  // the wax's actual average colour right now: hot and cool weighted by how much wax is at each temperature
+  let wa = 0, wh = 0; for (const b of blobs) if (!b.dying) { const a2 = b.r * b.r; wa += a2; wh += a2 * clamp(b.heat, 0, 1); }
+  // lean toward whichever colour most of the wax is showing (a straight average of two very different colours makes a third one)
+  const hm0 = wa ? wh / wa : 0.5, hm = hm0 * hm0 * (3 - 2 * hm0);
+  const hm2 = clamp((hm - 0.5) * 2.2 + 0.5, 0, 1);
+  let c = [0, 1, 2].map(i => (cc[i] + (hc[i] - cc[i]) * hm2) * 0.92 + lq[i] * 0.08);
+  if (!neonCol) neonCol = c.slice(); else neonCol = neonCol.map((v, i) => v + (c[i] - v) * 0.12);   // drifts gently, never jumps
+  c = neonCol.slice();
+  const mx = Math.max(...c, 0.05); c = c.map(v => Math.min(1, v / mx * 0.95 + 0.05));   // neon is always bright
+  const hex = rgb2hex(c); if (hex === neonKey) return; neonKey = hex;
+  svg.style.color = hex;
+  svg.style.filter = `drop-shadow(0 0 2px ${hex}) drop-shadow(0 0 7px ${hex}) drop-shadow(0 0 18px ${hex}aa)`;
+}
 function drawLamp() {
   document.body.classList.toggle("lampview", !!lampGeo);
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.style.display = lampGeo ? "" : "none";
   if (!lampGeo) { svg.innerHTML = ""; return; }
-  svg.innerHTML = frameSVG(curFrame(), lampGeo, { hot: themeById(themeId).hot });
+  svg.innerHTML = frameSVG(curFrame(), lampGeo, { hot: themeById(themeId).hot, live: true });
+  neonKey = "";
 }
 let framesKey = "";
 function renderFrames() {
@@ -1400,7 +1422,9 @@ function render() {
   }
   gl.uniform2f(U.uRes, canvas.width, canvas.height);
   gl.uniform4fv(U.uB, arr); gl.uniform1i(U.uN, n);
-  gl.uniform3fv(U.uHot, tone(cur.hot)); gl.uniform3fv(U.uCool, tone(cur.cool));
+  const th0 = tone(cur.hot), tc0 = tone(cur.cool);
+  gl.uniform3fv(U.uHot, th0); gl.uniform3fv(U.uCool, tc0);
+  neonGlow(th0, tc0);
   gl.uniform1f(U.uMergeK, clamp((absorb - 0.02) / 0.3, 0, 1)); gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
   if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
@@ -2299,7 +2323,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v42 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v43 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
