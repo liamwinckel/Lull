@@ -94,6 +94,10 @@
   .accs button{min-width:0;width:100%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:9px;color:#fff;background:rgba(255,255,255,.08)}
   .accs button.on{border-color:#fff}
   .labreset{display:block;margin:10px auto 4px;border:none;background:rgba(255,255,255,.08);color:#fff;border-radius:14px;padding:8px 16px;font-size:12.5px}
+  @keyframes swHue{to{filter:hue-rotate(360deg)}}
+  @keyframes swCham{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .mats i.sw-anim{animation:swHue 6s linear infinite}
+  .mats i.sw-cham{background-size:220% 220% !important;animation:swCham 5s ease-in-out infinite}
   .mats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 4px}
   .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;min-width:0}
   .mats i{width:30px;height:30px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
@@ -333,7 +337,7 @@
     <div class="labh">Finish</div>
     <div class="mats" id="matOpts"></div>
     <div class="labh">Accent <small>cap &amp; trim</small></div>
-    <div class="accs" id="accOpts"></div>
+    <div class="mats" id="accOpts"></div>
     <div class="labh">Cap</div>
     <div class="seg four" id="capOpts"></div>
     <div class="labh">Base</div>
@@ -683,7 +687,7 @@ const FRAMES = [
 ];
 let myLamps = store.get("myLamps", []), lampMods = store.get("lampMods", {});
 const MAT_NAMES = { chrome: "Chrome", black: "Matte black", gunmetal: "Gunmetal", brass: "Brass", gold: "Gold", copper: "Copper", rose: "Rose gold",
-  walnut: "Walnut", ceramic: "White", pearl: "Pearl", mint: "Mint", neon: "Neon" };
+  walnut: "Walnut", ceramic: "White", pearl: "Pearl", mint: "Mint", neon: "Neon", iris: "Iridescent", prism: "Prism", aurora: "Aurora", chameleon: "Chameleon" };
 const wkMul = v => v < 0.5 ? 0.75 + v * 0.5 : 1 + (v - 0.5) * 0.6;
 let frameId = store.get("frame", "classic");
 const frameOf = id => FRAMES.find(f => f.id === id) || myLamps.find(f => f.id === id) || FRAMES[0];
@@ -736,8 +740,22 @@ const MATS = {
   mint: [["#4e8a80", 0], ["#8fd3c6", .16], ["#e8fff9", .3], ["#b6eadf", .42], ["#6fb5a8", .68], ["#9edccf", .86], ["#4e8a80", 1]],
   rose: [["#22100e", 0], ["#7a4440", .16], ["#f6c2b4", .3], ["#b87a6e", .4], ["#4a2420", .68], ["#94605a", .86], ["#22100e", 1]],
 };
+// animated finishes: each stop lists colours it cycles through
+const ANIM = { iris: 9, prism: 12, aurora: 14 };
+Object.assign(MATS, {
+  iris: [[["#120a24", "#04202a", "#241008", "#120a24"], 0], [["#5a2a9a", "#1a8a9a", "#9a6a1a", "#5a2a9a"], .16], [["#d8b0ff", "#a0fff0", "#ffe0a0", "#d8b0ff"], .3], [["#7a50c0", "#3ab0b0", "#c0903a", "#7a50c0"], .4], [["#1a1030", "#082a30", "#2a1a08", "#1a1030"], .68], [["#4a3080", "#20707a", "#7a5020", "#4a3080"], .86], [["#120a24", "#04202a", "#241008", "#120a24"], 1]],
+  prism: [[["#300010", "#302000", "#003010", "#001830", "#200030", "#300010"], 0], [["#ff3a6a", "#ffb03a", "#3aff8a", "#3a9aff", "#c03aff", "#ff3a6a"], .18], [["#ffe0ea", "#fff0d0", "#e0ffe8", "#e0f0ff", "#f4e0ff", "#ffe0ea"], .3], [["#c02a50", "#c0802a", "#2ac06a", "#2a70c0", "#902ac0", "#c02a50"], .42], [["#200008", "#201400", "#002008", "#001020", "#140020", "#200008"], .7], [["#801a38", "#80561a", "#1a8048", "#1a4c80", "#601a80", "#801a38"], .86], [["#300010", "#302000", "#003010", "#001830", "#200030", "#300010"], 1]],
+  aurora: [[["#021a12", "#06122a", "#14062a", "#021a12"], 0], [["#2ad88a", "#2a8ad8", "#a04ae0", "#2ad88a"], .2], [["#c8ffe4", "#c8e4ff", "#ecd0ff", "#c8ffe4"], .32], [["#1aa06a", "#1a60a8", "#7030b0", "#1aa06a"], .45], [["#04140e", "#040c1e", "#0e041e", "#04140e"], .7], [["#148a5a", "#144e8a", "#5a248a", "#148a5a"], .86], [["#021a12", "#06122a", "#14062a", "#021a12"], 1]],
+  chameleon: [["#060606", 0], ["currentColor", .18], ["#f4f4f4", .3], ["currentColor", .42], ["#0a0a0a", .7], ["currentColor", .86], ["#060606", 1]],
+});
+const stopsFor = (m, hot) => (MATS[m] || MATS.chrome).map(([c, o], i) => {
+  if (Array.isArray(c)) { const dur = ANIM[m] || 10; return `<stop offset="${o}" stop-color="${c[0]}"><animate attributeName="stop-color" values="${c.join(";")}" dur="${dur}s" begin="-${(i * 0.7).toFixed(1)}s" repeatCount="indefinite"/></stop>`; }
+  return `<stop offset="${o}" stop-color="${c === "currentColor" && hot ? hot : c}"/>`;
+}).join("");
 const RIMS = { chrome: ["#1a1a1e", "#b8b8c2", "#55555e", "#2a2a30"], brass: ["#2a1d07", "#ffe39a", "#a07a2a", "#4a3410"],
   copper: ["#2a1208", "#ffc09a", "#a0522d", "#4a2010"], ceramic: ["#9a9a94", "#ffffff", "#d8d8d2", "#a8a8a2"],
+  iris: ["#1a1030", "#c8f8ff", "#a070e0", "#201030"], prism: ["#200010", "#ffffff", "#ff9a3a", "#102040"],
+  aurora: ["#021a12", "#d8fff0", "#5aa0e0", "#14062a"], chameleon: ["#050505", "#e8e8e8", "currentColor", "#101010"],
   black: ["#050506", "#55555c", "#202024", "#0c0c0e"], gunmetal: ["#0b0f13", "#c4d0dc", "#4a5866", "#1a2028"],
   gold: ["#2a1a02", "#fff6c8", "#d8a52a", "#5a3c04"], walnut: ["#1a0d06", "#c9925e", "#6a4022", "#2c180c"],
   pearl: ["#a59fa8", "#ffffff", "#e2dbe6", "#b8b0bc"], mint: ["#4e8a80", "#f4fffb", "#a8e4d8", "#5e9e94"], rose: ["#2a1412", "#ffd8cc", "#b87a6e", "#4a2420"] };
@@ -755,7 +773,7 @@ function frameSVG(F, geo, opt = {}) {
   const fill = neon ? "none" : `url(#${id}mt)`, stroke = neon ? `stroke="${nc}" stroke-width="${Math.max(1.4, L * 0.0045)}" ${nf}` : "";
   const rimFill = neon ? "none" : acc ? `url(#${id}am)` : `url(#${id}rm)`;
   const capFill = neon ? "none" : acc ? `url(#${id}am)` : `url(#${id}mt)`;
-  const stops = (MATS[F.mat] || MATS.chrome).map(([c, o]) => `<stop offset="${o}" stop-color="${c}"/>`).join("");
+  const stops = stopsFor(F.mat, opt.live ? null : hot);
   const rs = RIMS[F.mat] || RIMS.chrome;
   let base = "", cap = "";
   const bh = bottom - gB;
@@ -823,9 +841,9 @@ function frameSVG(F, geo, opt = {}) {
   return `
   <defs>
     <linearGradient id="${id}mt" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">${stops}</linearGradient>
-    ${acc ? `<linearGradient id="${id}am" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">${(MATS[F.capMat] || MATS.chrome).map(([c, o]) => `<stop offset="${o}" stop-color="${c}"/>`).join("")}</linearGradient>` : ""}
+    ${acc ? `<linearGradient id="${id}am" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">${stopsFor(F.capMat, opt.live ? null : hot)}</linearGradient>` : ""}
     <linearGradient id="${id}rm" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">
-      <stop offset="0" stop-color="${rs[0]}"/><stop offset=".3" stop-color="${rs[1]}"/><stop offset=".45" stop-color="${rs[2]}"/><stop offset=".8" stop-color="${rs[3]}"/><stop offset="1" stop-color="${rs[0]}"/></linearGradient>
+      ${[[0, 0], [.3, 1], [.45, 2], [.8, 3], [1, 0]].map(([o, k]) => `<stop offset="${o}" stop-color="${rs[k] === "currentColor" && !opt.live ? hot : rs[k]}"/>`).join("")}</linearGradient>
     <linearGradient id="${id}gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${hot}" stop-opacity=".5"/><stop offset=".55" stop-color="${hot}" stop-opacity="0"/></linearGradient>
     <linearGradient id="${id}gc" x1="0" x2="0" y1="1" y2="0"><stop offset="0" stop-color="${hot}" stop-opacity=".35"/><stop offset=".6" stop-color="${hot}" stop-opacity="0"/></linearGradient>
     <radialGradient id="${id}pl"><stop offset="0" stop-color="${hot}" stop-opacity=".16"/><stop offset="1" stop-color="${hot}" stop-opacity="0"/></radialGradient>
@@ -845,7 +863,8 @@ function frameSVG(F, geo, opt = {}) {
 // neon: one bright colour that sums up the lava (mostly the wax, a touch of the liquid), refreshed as it changes
 let neonKey = "", neonTick = 0, neonCol = null;
 function neonGlow(hc, cc) {
-  if (!lampGeo || curFrame().mat !== "neon") { if (neonKey !== "off") { neonKey = "off"; svg.style.filter = ""; svg.style.color = ""; } return; }
+  const CF = curFrame(), isNeon = CF.mat === "neon", isCham = CF.mat === "chameleon" || CF.capMat === "chameleon";
+  if (!lampGeo || (!isNeon && !isCham)) { if (neonKey !== "off") { neonKey = "off"; svg.style.filter = ""; svg.style.color = ""; } return; }
   if (++neonTick % 5 && neonKey) return;
   const lq = cur.liqBot || [0, 0, 0];
   // the wax's actual average colour right now: hot and cool weighted by how much wax is at each temperature
@@ -859,7 +878,7 @@ function neonGlow(hc, cc) {
   const mx = Math.max(...c, 0.05); c = c.map(v => Math.min(1, v / mx * 0.95 + 0.05));   // neon is always bright
   const hex = rgb2hex(c); if (hex === neonKey) return; neonKey = hex;
   svg.style.color = hex;
-  svg.style.filter = `drop-shadow(0 0 2px ${hex}) drop-shadow(0 0 7px ${hex}) drop-shadow(0 0 18px ${hex}aa)`;
+  svg.style.filter = isNeon ? `drop-shadow(0 0 2px ${hex}) drop-shadow(0 0 7px ${hex}) drop-shadow(0 0 18px ${hex}aa)` : "";
 }
 function drawLamp() {
   document.body.classList.toggle("lampview", !!lampGeo);
@@ -1820,22 +1839,31 @@ function syncLampOpts() {
   mb.innerHTML = "";
   Object.keys(MAT_NAMES).forEach(m => {
     const b = document.createElement("button"); b.className = m === F.mat ? "on" : "";
-    const st = MATS[m]; b.innerHTML = `<i style="background:${m === "neon" ? "radial-gradient(circle,#000 45%," + themeById(themeId).hot + " 60%,#000 75%)" : "linear-gradient(135deg," + st[1][0] + "," + st[2][0] + "," + st[4][0] + ")"}"></i><span>${MAT_NAMES[m]}</span>`;
+    b.innerHTML = `<i ${swatchOf(m)}></i><span>${MAT_NAMES[m]}</span>`;
     b.onclick = () => modLamp({ mat: m }); mb.appendChild(b);
   });
   const segs = (box, list, key) => { box.innerHTML = ""; list.forEach(([v, n]) => { const b = document.createElement("button"); b.textContent = n; b.className = F[key] === v ? "on" : ""; b.onclick = () => modLamp({ [key]: v }); box.appendChild(b); }); };
   segs($("#capOpts"), CAPS, "capShape"); segs($("#baseOpts"), BASES, "baseShape");
   const ab = $("#accOpts"); ab.innerHTML = "";
   [null, ...Object.keys(MAT_NAMES).filter(m => m !== "neon")].forEach(m => {
-    const b = document.createElement("button"), st = m && MATS[m];
-    b.className = (lampMods.capMat || null) === m ? "on" : ""; b.setAttribute("aria-label", m ? MAT_NAMES[m] : "Same as finish");
-    if (st) b.style.background = `linear-gradient(135deg,${st[1][0]},${st[2][0]},${st[4][0]})`; else b.textContent = "Same";
+    const b = document.createElement("button");
+    b.className = (lampMods.capMat || null) === m ? "on" : "";
+    b.innerHTML = m ? `<i ${swatchOf(m)}></i><span>${MAT_NAMES[m]}</span>` : `<i ${swatchOf(F.mat)} style="opacity:.55"></i><span>Same</span>`;
+    if (!m) b.querySelector("i").insertAdjacentHTML("afterbegin", "");
     b.onclick = () => modLamp({ capMat: m }); ab.appendChild(b);
   });
   $("#lampW").value = lampMods.w != null ? lampMods.w : 0.5;
   $("#lampGH").value = lampMods.gh != null ? lampMods.gh : 0.5;
   $("#lampCS").value = lampMods.cs != null ? lampMods.cs : 0.5;
   $("#lampCV").value = lampMods.cv != null ? lampMods.cv : 0.5;
+}
+// a swatch for any finish (animated ones move, Chameleon shows the lava's colours)
+function swatchOf(m) {
+  const st = MATS[m], c0 = x => Array.isArray(x) ? x[0] : x;
+  if (m === "neon") return `style="background:radial-gradient(circle,#000 45%,${themeById(themeId).hot} 60%,#000 75%)"`;
+  if (m === "chameleon") return `class="sw-cham" style="background:linear-gradient(135deg,var(--cool),#fff 45%,var(--hot))"`;
+  const g = `linear-gradient(135deg,${c0(st[1][0])},${c0(st[2][0])},${c0(st[4][0])})`;
+  return ANIM[m] ? `class="sw-anim" style="background:${m === "prism" ? "linear-gradient(135deg,#ff3a6a,#ffb03a,#3aff8a,#3a9aff,#c03aff)" : g}"` : `style="background:${g}"`;
 }
 function modLamp(m) {
   lampMods = { ...lampMods, ...m }; store.set("lampMods", lampMods);
@@ -2417,7 +2445,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v44 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v45 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
