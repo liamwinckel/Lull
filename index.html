@@ -59,10 +59,11 @@
   /* side panel: settings on the right, the lamp stays big on the left */
   /* the panel grows out of the tab you tapped, like a drop of liquid glass, and stays low within thumb reach */
   #sheet{left:var(--sl,10px);right:auto;top:auto;bottom:var(--sb,100px);width:var(--pw,226px);
-    max-height:var(--sh,60vh);padding:2px 12px 14px;border-radius:64px;
+    max-height:var(--sh,60vh);padding:2px 12px 14px;border-radius:64px;will-change:transform,opacity;
+    clip-path:inset(0 round 28px);
     transform:translateY(22px) scale(.22,.08);transform-origin:var(--ox,50%) 100%;
-    transition:transform .62s cubic-bezier(.2,.9,.22,1),opacity .32s ease,border-radius .55s cubic-bezier(.2,.8,.2,1),
-      left .5s cubic-bezier(.2,.8,.2,1),max-height .5s cubic-bezier(.2,.8,.2,1),background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
+    transition:transform .5s cubic-bezier(.2,.9,.22,1),opacity .28s ease,border-radius .45s cubic-bezier(.2,.8,.2,1),clip-path .45s cubic-bezier(.2,.8,.2,1)}
+  #sheet:not(.open){clip-path:inset(0 round 64px)}
   #sheet.open{transform:none;border-radius:28px}
   #sheet .grab{display:none}
   #sheet .chead{flex-direction:column;align-items:flex-start;gap:2px;margin:12px 0 10px}
@@ -75,7 +76,7 @@
   #sheet .card{display:none}
   #sheet .card.show{display:block}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-  #sheet.open .card.show > *{animation:rise .6s cubic-bezier(.16,1,.3,1) backwards;animation-delay:calc(var(--i,0) * 45ms + 60ms)}
+  #sheet.open .card.show > *{animation:rise .42s cubic-bezier(.16,1,.3,1) backwards;animation-delay:calc(min(var(--i,0),5) * 28ms + 30ms)}
   #sheet .card > *,#sheet .grab{transition:opacity .35s}
   #sheet.peek{background:rgba(14,14,18,0);backdrop-filter:none;-webkit-backdrop-filter:none;border-color:transparent}
   #sheet.peek .card > *:not(.active),#sheet.peek .grab{opacity:.07}
@@ -110,8 +111,8 @@
   /* lamp view: tiles show each preset's lamp; full screen: just its wax */
   body.lampview .tile:not(.nolamp) i{display:none}
   body:not(.lampview) .tile .tl{display:none}
-  .phead{position:sticky;top:-2px;z-index:3;margin:0 -12px;padding:0 12px 8px;
-    background:linear-gradient(to bottom,rgba(18,14,18,.92) 75%,rgba(18,14,18,0));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .phead{position:sticky;top:0;z-index:3;margin:0 -12px;padding:0 12px 10px;
+    background:linear-gradient(to bottom,rgba(22,18,22,.97) 82%,rgba(22,18,22,0))}
   .phead .seg{margin-bottom:8px}
   .phead .off{display:none !important}
   .catpick{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 14px 0 8px;border:none;border-radius:22px;color:#fff;font-size:14.5px;font-weight:600;
@@ -154,7 +155,7 @@
   /* themed menu: colours follow the lava */
   :root{--hot:#ff6a3d;--cool:#ffb347;--liq:#2a0d12}
   #sheet{background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,0) 38%),radial-gradient(130% 70% at 50% 115%,color-mix(in srgb,var(--hot) 22%,transparent),transparent 70%),rgba(16,12,16,.58) !important;
-    backdrop-filter:blur(26px) saturate(1.8) !important;-webkit-backdrop-filter:blur(26px) saturate(1.8) !important;
+    backdrop-filter:blur(20px) saturate(1.6) !important;-webkit-backdrop-filter:blur(20px) saturate(1.6) !important;
     border:1px solid rgba(255,255,255,.16) !important;
     box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.32),inset 0 -1px 0 rgba(255,255,255,.08),inset 0 0 24px color-mix(in srgb,var(--hot) 10%,transparent)}
   #sheet.peek{background:transparent !important;border-color:transparent !important;box-shadow:none}
@@ -760,9 +761,13 @@ function drawLamp() {
   if (!lampGeo) { svg.innerHTML = ""; return; }
   svg.innerHTML = frameSVG(curFrame(), lampGeo, { hot: themeById(themeId).hot });
 }
+let framesKey = "";
 function renderFrames() {
-  const box = $("#frameList"); if (!box) return; box.innerHTML = "";
+  const box = $("#frameList"); if (!box) return;
   const th = themeById(themeId);
+  const key = JSON.stringify([frameId, lampMods, th.hot, th.liqTop, th.liqBot, viewSel, myLamps.map(l => l.id + l.name)]);
+  if (key === framesKey && box.children.length) return;
+  framesKey = key; box.innerHTML = "";
   for (const F0 of [...FRAMES, ...myLamps]) {
     const F = F0.id === frameId ? curFrame() : F0, mine = F0.id.startsWith("my");
     const b = document.createElement("button"); b.className = "frame" + (F.id === frameId && viewSel === "lamp" ? " on" : "") + (mine ? " mine" : "");
@@ -773,7 +778,7 @@ function renderFrames() {
     if (mine) {   // hold one of your lamps to delete it
       let ht = 0; b.addEventListener("pointerdown", () => { ht = setTimeout(() => { b.dataset.held = 1;
         b.querySelector("span").textContent = "Delete?"; b.classList.add("del");
-        b.onclick = () => { myLamps = myLamps.filter(x => x.id !== F0.id); store.set("myLamps", myLamps); if (frameId === F0.id) setFrame("classic"); renderFrames(); }; }, 600); });
+        b.onclick = () => { myLamps = myLamps.filter(x => x.id !== F0.id); store.set("myLamps", myLamps); if (frameId === F0.id) setFrame("classic"); framesKey = ""; renderFrames(); }; }, 600); });
       for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => clearTimeout(ht));
       b.addEventListener("contextmenu", e => e.preventDefault());
     }
@@ -1822,7 +1827,7 @@ function openSheet(name) {
   if (name === "lamp" && viewSel === "full") { lampPreview = true; setView("lamp", true); }
   else if (name !== "lamp" && lampPreview) { lampPreview = false; setView("full", true); }
   sheet.querySelectorAll(".card").forEach(c => c.classList.toggle("show", c.dataset.card === name));
-  if (name === "lamp") renderFrames();
+  if (name === "lamp") renderFrames();   // cheap: skipped unless something changed
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
   placeSheet(name);
@@ -2284,7 +2289,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v38 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v39 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
