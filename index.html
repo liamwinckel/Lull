@@ -110,7 +110,13 @@
   /* lamp view: tiles show each preset's lamp; full screen: just its wax */
   body.lampview .tile:not(.nolamp) i{display:none}
   body:not(.lampview) .tile .tl{display:none}
-  .cats{display:flex;gap:6px;overflow-x:auto;padding:0 0 10px;margin:0 -2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .phead{position:sticky;top:-2px;z-index:3;margin:0 -12px;padding:0 12px 8px;
+    background:linear-gradient(to bottom,rgba(18,14,18,.92) 75%,rgba(18,14,18,0));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .phead .seg{margin-bottom:8px}
+  .phead .cats.off{display:none}
+  #featList{transition:opacity .22s ease}
+  #featList.swap{opacity:0}
+  .cats{display:flex;gap:6px;overflow-x:auto;padding:0 0 2px;margin:0 -2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .cats::-webkit-scrollbar{display:none}
   .cats button{flex:none;border:none;border-radius:14px;padding:6px 11px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;white-space:nowrap}
   .cats button.on{background:rgba(255,255,255,.24)}
@@ -331,9 +337,12 @@
   </section>
 
   <section class="card" data-card="presets">
-    <div class="chead"><span>Presets</span><span id="presetHint">a library of looks · tap to try one</span></div>
-    <div class="seg two" id="presetTabs" style="margin-bottom:10px"><button data-p="lib">Library</button><button data-p="mine">My presets</button></div>
-    <div id="libBox"><div class="cats" id="catBar"></div><div id="featList"></div></div>
+    <div class="phead">
+      <div class="chead"><span>Presets</span><span id="presetHint">a library of looks · tap to try one</span></div>
+      <div class="seg two" id="presetTabs"><button data-p="lib">Library</button><button data-p="mine">My presets</button></div>
+      <div class="cats" id="catBar"></div>
+    </div>
+    <div id="libBox"><div id="featList"></div></div>
     <div id="mineBox"><div class="tiles" id="presetList"></div></div>
     <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form>
   </section>
@@ -1737,10 +1746,13 @@ sheet.addEventListener("scroll", () => { clearTimeout(scrollNudge); scrollNudge 
 function watchTiles(box) { if (tileIO) box.querySelectorAll(".tile, .frame").forEach(t => tileIO.observe(t)); }
 let presetTab = store.get("presetTab", "lib"), libCat = "All";
 const CATS = ["All", ...new Set(LIBRARY.map(p => p.cat))];
-function renderFeatured() {
-  const box = $("#featList"); if (!box) return; box.innerHTML = "";
-  const bar = $("#catBar"); bar.innerHTML = "";
-  CATS.forEach(c => { const b = document.createElement("button"); b.textContent = c; b.className = c === libCat ? "on" : ""; b.onclick = () => { libCat = c; renderFeatured(); sheet.scrollTo({ top: 0, behavior: "smooth" }); }; bar.appendChild(b); });
+function renderFeatured(anim) {
+  const box = $("#featList"); if (!box) return;
+  const bar = $("#catBar");
+  if (!bar.children.length) CATS.forEach(c => { const b = document.createElement("button"); b.textContent = c; b.dataset.c = c; b.onclick = () => pickCat(c); bar.appendChild(b); });
+  [...bar.children].forEach(b => b.classList.toggle("on", b.dataset.c === libCat));
+  bar.classList.toggle("off", presetTab !== "lib");
+  box.innerHTML = "";
   for (const cat of CATS.slice(1)) {
     if (libCat !== "All" && libCat !== cat) continue;
     const lab = document.createElement("div"); lab.className = "catlabel"; lab.textContent = cat; box.appendChild(lab);
@@ -1750,9 +1762,23 @@ function renderFeatured() {
   }
   [...$("#presetTabs").children].forEach(b => b.classList.toggle("on", b.dataset.p === presetTab));
   $("#libBox").hidden = presetTab !== "lib"; $("#mineBox").hidden = presetTab !== "mine";
-  $("#presetHint").textContent = presetTab === "lib" ? "a library of looks · tap to try one" : "tap to apply · hold to rename or delete";
+  $("#presetHint").textContent = presetTab === "lib" ? LIBRARY.length + " looks · tap to try one" : "tap to apply · hold to rename or delete";
 }
-[...$("#presetTabs").children].forEach(b => b.onclick = () => { presetTab = b.dataset.p; store.set("presetTab", presetTab); renderFeatured(); sheet.scrollTop = 0; });
+// switching category: the list fades out, swaps while invisible, then fades back in at the top
+function pickCat(c) {
+  if (c === libCat) return;
+  libCat = c; const box = $("#featList"); box.classList.add("swap");
+  const chip = [...$("#catBar").children].find(b => b.dataset.c === c);
+  [...$("#catBar").children].forEach(b => b.classList.toggle("on", b === chip));
+  if (chip) chip.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  setTimeout(() => { renderFeatured(); sheet.scrollTop = 0; requestAnimationFrame(() => box.classList.remove("swap")); }, 200);
+}
+[...$("#presetTabs").children].forEach(b => b.onclick = () => {
+  if (presetTab === b.dataset.p) return;
+  presetTab = b.dataset.p; store.set("presetTab", presetTab);
+  const box = presetTab === "lib" ? $("#libBox") : $("#mineBox");
+  renderFeatured(); sheet.scrollTop = 0; box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "ease-out" });
+});
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
   const i = (ids.indexOf(themeId) + dir + ids.length) % ids.length;
@@ -1797,6 +1823,7 @@ function placeSheet(name) {
   rs.setProperty("--sl", left + "px"); rs.setProperty("--sb", (H - dockTop + 10) + "px");
   rs.setProperty("--sh", Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58)) + "px");
   rs.setProperty("--ox", Math.round(bx - left) + "px");
+  rs.height = tall ? Math.round(dockTop - 10 - safeT) + "px" : "";   // tall panels keep one steady size, whatever is showing
 }
 // keep the whole lamp (or the whole tank in full screen) in view above the open menu
 function frameView() {
@@ -2136,6 +2163,13 @@ function pressDent(x, y) {
     if (d < b.r * 1.15) { const nx = d > 1 ? -dx / d : 0, ny = d > 1 ? -dy / d : -1; b.qvx = (b.qvx || 0) + nx * 0.8; b.qvy = (b.qvy || 0) + ny * 0.8; break; }
   }
 }
+// pops the closest unpopped bubble under the finger (generous, since bubbles are small and moving)
+function popNear(x, y, pad) {
+  let best = null, bd = Infinity;
+  for (const b of bubbles) if (b.pop === 0) { const d = Math.hypot(b.x - x, b.y - y) - b.r; if (d < pad && d < bd) { bd = d; best = b; } }
+  if (best) popBubble(best);
+  return !!best;
+}
 // Pressing on a blob (or a bubble) acts immediately. Returns true if it did something.
 function pressAction(x, y) {
   const bs = 1 + 0.14 * breathLvl;
@@ -2184,6 +2218,7 @@ canvas.addEventListener("pointerdown", e => {
   if (!started) return;
   if (sheetOpen) { closeSheet(); return; }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  popNear(e.clientX, e.clientY, 22);
   const now = performance.now();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
   // instant feedback on press; the split itself happens on release if the finger didn't move (so drags never split)
@@ -2204,6 +2239,7 @@ canvas.addEventListener("pointermove", e => {
   p.dist += Math.hypot(dx, dy);
   if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 8) p.moved = true;
   p.x = e.clientX; p.y = e.clientY; p.tp = now;
+  popNear(p.x, p.y, 12);
   if (pointers.size === 1) {
     stir(p.x, p.y, dx / dtp, dy / dtp, dtp);
     if (p.dist - p.lastNote > 170 && now - lastNoteT > 280) { p.lastNote = p.dist; lastNoteT = now; audio.note(p.y / H); }
@@ -2230,7 +2266,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v36 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v37 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
