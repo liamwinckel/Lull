@@ -111,8 +111,11 @@
   /* lamp view: tiles show each preset's lamp; full screen: just its wax */
   body.lampview .tile:not(.nolamp) i{display:none}
   body:not(.lampview) .tile .tl{display:none}
-  .phead{position:sticky;top:0;z-index:3;margin:0 -12px;padding:0 12px 10px;
-    background:linear-gradient(to bottom,rgba(22,18,22,.97) 82%,rgba(22,18,22,0))}
+  .phead{flex:none;padding:0 0 8px}
+  #sheet.fixedhead{overflow:hidden;display:flex;flex-direction:column}
+  #sheet.fixedhead .card.show{flex:1;min-height:0;display:flex;flex-direction:column}
+  #libBox,#mineBox{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:0 -12px;padding:4px 12px 6px;
+    -webkit-mask-image:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(to bottom,transparent,#000 14px,#000 calc(100% - 14px),transparent)}
   .phead .seg{margin-bottom:8px}
   .phead .off{display:none !important}
   .catpick{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 14px 0 8px;border:none;border-radius:22px;color:#fff;font-size:14.5px;font-weight:600;
@@ -1755,12 +1758,13 @@ function presetTile(p, i) {
 const tileIO = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach(e => {
   if (!e.isIntersecting) return; const im = e.target.querySelector("img"); if (!im) return;
   im.style.opacity = "0.99"; requestAnimationFrame(() => { im.style.opacity = ""; });
-}), { root: sheet, rootMargin: "60px" }) : null;
+}), { root: null, rootMargin: "60px" }) : null;
 let scrollNudge = 0;
-sheet.addEventListener("scroll", () => { clearTimeout(scrollNudge); scrollNudge = setTimeout(() => {
+const nudgeAll = () => { clearTimeout(scrollNudge); scrollNudge = setTimeout(() => {
   sheet.querySelectorAll(".card.show .tile img, .card.show .frame img").forEach(im => { im.style.opacity = "0.99"; });
   requestAnimationFrame(() => sheet.querySelectorAll(".card.show .tile img, .card.show .frame img").forEach(im => { im.style.opacity = ""; }));
-}, 120); }, { passive: true });
+}, 120); };
+for (const el of [sheet, $("#libBox"), $("#mineBox")]) el.addEventListener("scroll", nudgeAll, { passive: true });
 function watchTiles(box) { if (tileIO) box.querySelectorAll(".tile, .frame").forEach(t => tileIO.observe(t)); }
 let presetTab = store.get("presetTab", "lib"), libCat = "All";
 const CATS = ["All", ...new Set(LIBRARY.map(p => p.cat))];
@@ -1794,13 +1798,13 @@ $("#catPick").addEventListener("click", () => catOpen($("#catPick").getAttribute
 function pickCat(c) {
   catOpen(false);
   if (c === libCat) return;
-  libCat = c; sheet.scrollTop = 0; renderFeatured(true);
+  libCat = c; $("#libBox").scrollTop = 0; renderFeatured(true);
 }
 [...$("#presetTabs").children].forEach(b => b.onclick = () => {
   if (presetTab === b.dataset.p) return;
   presetTab = b.dataset.p; store.set("presetTab", presetTab);
   const box = presetTab === "lib" ? $("#libBox") : $("#mineBox");
-  renderFeatured(presetTab === "lib"); sheet.scrollTop = 0; box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "ease-out" });
+  renderFeatured(presetTab === "lib"); box.scrollTop = 0; box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "ease-out" });
 });
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
@@ -1830,7 +1834,7 @@ function openSheet(name) {
   if (name === "lamp") renderFrames();   // cheap: skipped unless something changed
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
-  placeSheet(name);
+  placeSheet(name); sheet.classList.toggle("fixedhead", name === "presets");
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
   requestAnimationFrame(frameView);
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
@@ -2289,7 +2293,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v39 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v40 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
