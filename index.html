@@ -87,6 +87,13 @@
   .frame span{opacity:.8}
   .frame.del{border-color:#ff6b6b}
   .frame.mine{background:rgba(255,255,255,.09)}
+  .labh{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.55;margin:14px 2px 8px}
+  .labh small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.8;margin-left:4px}
+  .seg.four{display:grid !important;grid-template-columns:repeat(4,1fr);gap:4px}
+  .accs{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .accs button{min-width:0;width:100%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:9px;color:#fff;background:rgba(255,255,255,.08)}
+  .accs button.on{border-color:#fff}
+  .labreset{display:block;margin:10px auto 4px;border:none;background:rgba(255,255,255,.08);color:#fff;border-radius:14px;padding:8px 16px;font-size:12.5px}
   .mats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 4px}
   .mats button{display:flex;flex-direction:column;align-items:center;gap:4px;border:none;background:none;padding:0;font-size:10px;min-width:0}
   .mats i{width:30px;height:30px;border-radius:50%;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
@@ -219,7 +226,7 @@
   .preset.editing{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.12)}
   .preset input{width:130px;border:none;background:none;color:#fff;font:inherit;font-size:16px;padding:8px 4px 8px 14px;outline:none;-webkit-user-select:text;user-select:text}
   .save-p{flex:none;border:1px dashed rgba(255,255,255,.35);background:none;border-radius:20px;padding:9px 14px;font-size:14px;color:#fff}
-  .pform{display:none;gap:8px;margin-top:10px}
+  .pform{display:none;gap:8px;margin:10px 0 14px}
   .pform.show{display:flex}
   .pform input{flex:1;min-width:0;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;padding:10px 12px;font:inherit;font-size:16px;-webkit-user-select:text;user-select:text}
   .pform button{border:none;border-radius:12px;padding:10px 16px;background:#fff;color:#111;font-weight:600;font-size:14px}
@@ -322,11 +329,21 @@
   <section class="card" data-card="lamp">
     <div class="chead"><span>Design</span><span>shape, finish and saved lamps</span></div>
     <div class="frames" id="frameList"></div>
-    <div class="chead" style="margin-top:12px"><span>Make it yours</span><span>hold a saved lamp to delete</span></div>
+    <div class="chead" style="margin-top:14px"><span>Lamp lab</span><span>tweak anything · hold a saved lamp to delete</span></div>
+    <div class="labh">Finish</div>
     <div class="mats" id="matOpts"></div>
-    <div class="seg" id="capOpts" style="margin-top:8px"></div>
-    <div class="seg" id="baseOpts" style="margin-top:6px"></div>
+    <div class="labh">Accent <small>cap &amp; trim</small></div>
+    <div class="accs" id="accOpts"></div>
+    <div class="labh">Cap</div>
+    <div class="seg four" id="capOpts"></div>
+    <div class="labh">Base</div>
+    <div class="seg four" id="baseOpts"></div>
+    <div class="labh">Proportions</div>
     <div class="row"><span>Glass width</span><input type="range" id="lampW" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Glass height</span><input type="range" id="lampGH" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Cap size</span><input type="range" id="lampCS" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Curve</span><input type="range" id="lampCV" min="0" max="1" step="0.01"></div>
+    <button class="labreset" id="labReset">Reset tweaks</button>
     <form class="pform show" id="lampForm"><input id="lampName" maxlength="20" placeholder="Name this lamp" aria-label="Lamp name"><button type="submit">Save lamp</button></form>
   </section>
 
@@ -359,8 +376,8 @@
       <div class="catgrid" id="catGrid"></div>
     </div>
     <div id="libBox"><div id="featList"></div></div>
-    <div id="mineBox"><div class="tiles" id="presetList"></div></div>
-    <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form>
+    <div id="mineBox"><div class="tiles" id="presetList"></div>
+    <form class="pform" id="presetForm"><input id="presetName" maxlength="24" placeholder="Name this preset" aria-label="Preset name"><button type="submit">Save</button></form></div>
   </section>
 </div>
 
@@ -469,6 +486,10 @@ float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
 uniform vec4 uProf; uniform float uProfT;
 float prof(float s){ s=clamp(s,0.,1.);
+  if(uProfT>6.5) return uProf.x+(1.-uProf.x)*pow(s,uProf.w);
+  if(uProfT>5.5){ float c=uProf.y*0.5, q=(s-c)/c; return s<c ? max(uProf.x,sqrt(max(0.,1.-q*q))) : max(uProf.z,sqrt(max(0.,1.-q*q))); }
+  if(uProfT>4.5) return s<uProf.y ? uProf.x+(1.-uProf.x)*s/uProf.y : uProf.z+(1.-uProf.z)*(1.-s)/(1.-uProf.y);
+  if(uProfT>3.5) return uProf.x+(1.-uProf.x)*pow(abs(sin(3.14159*uProf.y*(s*0.94+0.03))),0.7);
   if(uProfT>2.5){ float a=abs(2.*s-1.); if(a<1.-uProf.y) return 1.; float t=(a-(1.-uProf.y))/uProf.y; return max(uProf.x,sqrt(max(0.,1.-t*t))); }
   if(uProfT>1.5) return 1.-(1.-uProf.x)*pow(sin(s*3.14159),uProf.w);
   if(uProfT>0.5) return max(uProf.x, sqrt(max(0.,1.-pow(2.*s-1.,2.)))); return s<uProf.y ? uProf.x+(1.-uProf.x)*sin(s/uProf.y*1.5708) : 1.-(1.-uProf.z)*pow((s-uProf.y)/(1.-uProf.y),uProf.w); }
@@ -646,6 +667,18 @@ const FRAMES = [
   { id: "tower", name: "Tower", mat: "chrome", prof: [0.9, 0.2, 0.72, 1.6, 0], cap: 0.11, glass: 0.66, wk: 0.74, capShape: "spike", baseShape: "flare" },
   { id: "bottle", name: "Bottle", mat: "copper", prof: [0.96, 0.55, 0.36, 2.4, 0], cap: 0.12, glass: 0.6, wk: 1.15, capShape: "knob", baseShape: "pedestal" },
   { id: "teardrop", name: "Teardrop", mat: "gold", prof: [0.72, 0.24, 0.26, 1.25, 0], cap: 0.12, glass: 0.6, wk: 1.12, capShape: "spike", baseShape: "pedestal" },
+  { id: "totem", name: "Totem", mat: "walnut", prof: [0.55, 3, 0, 0, 4], cap: 0.1, glass: 0.64, wk: 0.95, capShape: "orb", baseShape: "stack" },
+  { id: "bubbles", name: "Bubbles", mat: "pearl", prof: [0.42, 2, 0, 0, 4], cap: 0.1, glass: 0.62, wk: 1.18, capShape: "knob", baseShape: "orb" },
+  { id: "wave", name: "Wave", mat: "chrome", prof: [0.8, 4.5, 0, 0, 4], cap: 0.12, glass: 0.66, wk: 0.78, capShape: "antenna", baseShape: "flare" },
+  { id: "diamond", name: "Diamond", mat: "gold", prof: [0.22, 0.5, 0.22, 0, 5], cap: 0.12, glass: 0.6, wk: 1.25, capShape: "spike", baseShape: "pedestal" },
+  { id: "spindle", name: "Spindle", mat: "gunmetal", prof: [0.3, 0.32, 0.14, 0, 5], cap: 0.14, glass: 0.6, wk: 1.0, capShape: "antenna", baseShape: "tripod" },
+  { id: "potion", name: "Potion", mat: "copper", prof: [0.3, 0.62, 0.32, 0, 6], cap: 0.1, glass: 0.64, wk: 1.3, capShape: "flat", baseShape: "saucer" },
+  { id: "trumpet", name: "Trumpet", mat: "brass", prof: [0.3, 0, 0, 1.6, 7], cap: 0.08, glass: 0.64, wk: 1.05, capShape: "flat", baseShape: "stack" },
+  { id: "chalice", name: "Chalice", mat: "gold", prof: [0.28, 0, 0, 0.6, 7], cap: 0.1, glass: 0.52, wk: 1.15, capShape: "crown", baseShape: "pedestal" },
+  { id: "pillar", name: "Pillar", mat: "black", prof: [0.95, 0.2, 0.92, 2, 0], cap: 0.07, glass: 0.72, wk: 0.56, capShape: "crown", baseShape: "block" },
+  { id: "ufo", name: "UFO", mat: "chrome", prof: [0.3, 0, 0, 0, 1], cap: 0.2, glass: 0.32, wk: 2.2, capShape: "antenna", baseShape: "saucer" },
+  { id: "lantern", name: "Lantern", mat: "copper", prof: [0.78, 0.12, 0, 0, 3], cap: 0.12, glass: 0.6, wk: 1.1, capShape: "orb", baseShape: "tripod" },
+  { id: "crownjewel", name: "Crown", mat: "rose", prof: [0.5, 0, 0, 2.2, 2], cap: 0.12, glass: 0.58, wk: 1.12, capShape: "crown", baseShape: "orb" },
   { id: "atomic", name: "Atomic", mat: "black", prof: [0.6, 0.22, 0.42, 1.0, 0], cap: 0.15, glass: 0.56, wk: 1.2, capShape: "cone", baseShape: "fins" },
 ];
 let myLamps = store.get("myLamps", []), lampMods = store.get("lampMods", {});
@@ -657,11 +690,19 @@ const frameOf = id => FRAMES.find(f => f.id === id) || myLamps.find(f => f.id ==
 // the lamp on screen: the chosen frame plus any tweaks (finish, cap, base, width)
 function curFrame() { return frameWith(frameId, lampMods); }
 function frameWith(id, mods) { const F = frameOf(id), m = mods || {};
-  return { ...F, mat: m.mat || F.mat, capShape: m.capShape || F.capShape, baseShape: m.baseShape || F.baseShape, wk: F.wk * (m.w != null ? wkMul(m.w) : 1) }; }
+  const mul = (v, lo, hi) => v == null ? 1 : v < 0.5 ? lo + (1 - lo) * v * 2 : 1 + (hi - 1) * (v - 0.5) * 2;
+  let cap = F.cap * mul(m.cs, 0.35, 1.9), glass = F.glass * mul(m.gh, 0.72, 1.22);
+  if (cap + glass > 0.9) { const k = 0.9 / (cap + glass); cap *= k; glass *= k; }
+  const prof = F.prof.slice(); if (m.cv != null) { prof[0] = clamp(prof[0] * mul(m.cv, 0.4, 1.6), 0.08, 1); if (prof[4] === 5 || prof[4] === 6) prof[2] = clamp(prof[2] * mul(m.cv, 0.4, 1.6), 0.08, 1); }
+  return { ...F, prof, cap, glass, mat: m.mat || F.mat, capMat: m.capMat || F.capMat, capShape: m.capShape || F.capShape, baseShape: m.baseShape || F.baseShape, wk: F.wk * (m.w != null ? wkMul(m.w) : 1) }; }
 const profWith = (P, s) => {
   s = clamp(s, 0, 1);
   if (P[4] === 1) return Math.max(P[0], Math.sqrt(Math.max(0, 1 - Math.pow(2 * s - 1, 2))));
   if (P[4] === 2) return 1 - (1 - P[0]) * Math.pow(Math.sin(s * Math.PI), P[3]);
+  if (P[4] === 4) return P[0] + (1 - P[0]) * Math.pow(Math.abs(Math.sin(Math.PI * P[1] * (s * 0.94 + 0.03))), 0.7);   // stacked bulbs
+  if (P[4] === 5) return s < P[1] ? P[0] + (1 - P[0]) * s / P[1] : P[2] + (1 - P[2]) * (1 - s) / (1 - P[1]);           // diamond
+  if (P[4] === 6) { const c = P[1] * 0.5, q = (s - c) / c; return s < c ? Math.max(P[0], Math.sqrt(Math.max(0, 1 - q * q))) : Math.max(P[2], Math.sqrt(Math.max(0, 1 - q * q))); }   // flask
+  if (P[4] === 7) return P[0] + (1 - P[0]) * Math.pow(s, P[3]);                                                                 // funnel
   if (P[4] === 3) { const a = Math.abs(2 * s - 1); if (a < 1 - P[1]) return 1; const t = (a - (1 - P[1])) / P[1]; return Math.max(P[0], Math.sqrt(Math.max(0, 1 - t * t))); }
   return s < P[1] ? P[0] + (1 - P[0]) * Math.sin(s / P[1] * Math.PI / 2) : 1 - (1 - P[2]) * Math.pow((s - P[1]) / (1 - P[1]), P[3]);
 };
@@ -708,10 +749,12 @@ function frameSVG(F, geo, opt = {}) {
   const hot = opt.hot || "#ffc24a", neon = F.mat === "neon";
   // the live lamp's neon takes its colour from CSS (it follows the lava as it changes) and glows via CSS, which iOS draws reliably
   const nc = opt.live ? "currentColor" : hot, nf = opt.live ? "" : `filter="url(#${id}gl)"`;
-  const bT = hb * 1.03, bB = hwMax * (F.baseShape === "pedestal" ? 0.9 : F.baseShape === "block" ? 1.0 : 1.34);
+  const bT = hb * 1.03, bB = hwMax * ({ pedestal: 0.9, block: 1.0, tripod: 1.25, orb: 0.8, stack: 1.1, saucer: 1.55 }[F.baseShape] || 1.34);
+  const acc = F.capMat && F.capMat !== F.mat && !neon && F.capMat !== "neon";
   const ctT = ht * 0.42, ctB = ht * 1.05;
   const fill = neon ? "none" : `url(#${id}mt)`, stroke = neon ? `stroke="${nc}" stroke-width="${Math.max(1.4, L * 0.0045)}" ${nf}` : "";
-  const rimFill = neon ? "none" : `url(#${id}rm)`;
+  const rimFill = neon ? "none" : acc ? `url(#${id}am)` : `url(#${id}rm)`;
+  const capFill = neon ? "none" : acc ? `url(#${id}am)` : `url(#${id}mt)`;
   const stops = (MATS[F.mat] || MATS.chrome).map(([c, o]) => `<stop offset="${o}" stop-color="${c}"/>`).join("");
   const rs = RIMS[F.mat] || RIMS.chrome;
   let base = "", cap = "";
@@ -726,6 +769,23 @@ function frameSVG(F, geo, opt = {}) {
   } else if (F.baseShape === "pedestal") {
     const nk = hb * 0.7;
     base = `<path d="M${cx - hb * 1.05},${gB} L${cx + hb * 1.05},${gB} Q${cx + nk},${gB + bh * 0.25} ${cx + nk},${gB + bh * 0.45} Q${cx + nk},${gB + bh * 0.7} ${cx + bB},${bottom - rim * 1.6} L${cx + bB},${bottom} L${cx - bB},${bottom} L${cx - bB},${bottom - rim * 1.6} Q${cx - nk},${gB + bh * 0.7} ${cx - nk},${gB + bh * 0.45} Q${cx - nk},${gB + bh * 0.25} ${cx - hb * 1.05},${gB} Z"`;
+  } else if (F.baseShape === "tripod") {
+    const cy = gB + bh * 0.3, lw = Math.max(1.2, hwMax * 0.1);
+    base = `<path d="M${cx - bT},${gB} L${cx + bT},${gB} L${cx + bT * 0.8},${cy} L${cx - bT * 0.8},${cy} Z
+      M${cx - bT * 0.7},${cy - 1} L${cx - bT * 0.7 + lw},${cy - 1} L${cx - bB + lw},${bottom} L${cx - bB - lw * 0.4},${bottom} Z
+      M${cx + bT * 0.7},${cy - 1} L${cx + bT * 0.7 - lw},${cy - 1} L${cx + bB - lw},${bottom} L${cx + bB + lw * 0.4},${bottom} Z
+      M${cx - lw * 0.6},${cy - 1} L${cx + lw * 0.6},${cy - 1} L${cx + lw * 0.6},${bottom} L${cx - lw * 0.6},${bottom} Z"`;
+  } else if (F.baseShape === "orb") {
+    const r = Math.min(bh * 0.42, bB), cy = bottom - r;
+    base = `<path d="M${cx - hb},${gB} L${cx + hb},${gB} L${cx + hb * 0.55},${cy - r * 0.8} A${r},${r} 0 1 1 ${cx - hb * 0.55},${cy - r * 0.8} Z"`;
+  } else if (F.baseShape === "stack") {
+    const h3 = bh / 3, w1 = bT * 1.02, w2 = (bT + bB) / 2, w3 = bB, rr = L * 0.008;
+    base = `<path d="M${cx - w1},${gB} L${cx + w1},${gB} L${cx + w1},${gB + h3} L${cx - w1},${gB + h3} Z
+      M${cx - w2},${gB + h3 - rr} L${cx + w2},${gB + h3 - rr} L${cx + w2},${gB + h3 * 2} L${cx - w2},${gB + h3 * 2} Z
+      M${cx - w3},${gB + h3 * 2 - rr} L${cx + w3},${gB + h3 * 2 - rr} L${cx + w3},${bottom} L${cx - w3},${bottom} Z"`;
+  } else if (F.baseShape === "saucer") {
+    const sy = bottom - bh * 0.32;
+    base = `<path d="M${cx - bT},${gB} L${cx + bT},${gB} Q${cx + bT * 0.7},${sy - bh * 0.15} ${cx + bB},${sy} Q${cx + bB * 0.8},${bottom} ${cx},${bottom} Q${cx - bB * 0.8},${bottom} ${cx - bB},${sy} Q${cx - bT * 0.7},${sy - bh * 0.15} ${cx - bT},${gB} Z"`;
   } else {
     base = `<rect x="${cx - bB}" y="${gB + bh * 0.08}" width="${bB * 2}" height="${bh * 0.92}" rx="${L * 0.02}"`;
   }
@@ -736,6 +796,22 @@ function frameSVG(F, geo, opt = {}) {
   } else if (F.capShape === "knob") {
     const kr = ht * 0.55;
     cap = `<path d="M${cx - kr},${gT} Q${cx - kr},${top} ${cx},${top} Q${cx + kr},${top} ${cx + kr},${gT} Z"`;
+  } else if (F.capShape === "orb") {
+    const ch = gT - top, r = Math.min(Math.max(ht, hwMax * 0.3) * 0.6, ch * 0.42), cy = top + r, nw = Math.max(ht * 0.35, r * 0.4);
+    cap = `<path d="M${cx - nw},${gT} L${cx - nw},${cy + r * 0.7} A${r},${r} 0 1 1 ${cx + nw},${cy + r * 0.7} L${cx + nw},${gT} Z"`;
+  } else if (F.capShape === "flat") {
+    const ch = gT - top, y0 = gT - ch * 0.5, w = Math.max(ht, hwMax * 0.35) * 1.25;
+    cap = `<path d="M${cx - w},${gT} L${cx - w},${y0 + ch * 0.1} Q${cx - w},${y0} ${cx - w * 0.85},${y0} L${cx + w * 0.85},${y0} Q${cx + w},${y0} ${cx + w},${y0 + ch * 0.1} L${cx + w},${gT} Z"`;
+  } else if (F.capShape === "crown") {
+    const w = Math.max(ht, hwMax * 0.3) * 1.1, y0 = top + (gT - top) * 0.15, yb = top + (gT - top) * 0.55;
+    let d = `M${cx - w},${gT} L${cx - w},${y0}`; const n = 5;
+    for (let i = 0; i < n; i++) { const xa = cx - w + (2 * w) * (i + 0.5) / n, xb = cx - w + (2 * w) * (i + 1) / n; d += ` L${xa},${yb} L${xb},${y0}`; }
+    cap = `<path d="${d} L${cx + w},${gT} Z"`;
+  } else if (F.capShape === "antenna") {
+    const ch = gT - top, r = Math.max(1.5, ch * 0.12), rw = Math.max(0.8, hwMax * 0.035), w = Math.max(ht, hwMax * 0.3) * 0.9, y1 = gT - ch * 0.32;
+    cap = `<path d="M${cx - w},${gT} Q${cx - w},${y1} ${cx},${y1} Q${cx + w},${y1} ${cx + w},${gT} Z
+      M${cx - rw},${y1 + 1} L${cx - rw},${top + r * 1.6} L${cx + rw},${top + r * 1.6} L${cx + rw},${y1 + 1} Z
+      M${cx - r},${top + r} A${r},${r} 0 1 1 ${cx + r},${top + r} A${r},${r} 0 1 1 ${cx - r},${top + r} Z"`;
   } else {
     cap = `<path d="M${cx - ht * 1.02},${gT} Q${cx - ht * 1.02},${top} ${cx},${top} Q${cx + ht * 1.02},${top} ${cx + ht * 1.02},${gT} Z"`;
   }
@@ -747,6 +823,7 @@ function frameSVG(F, geo, opt = {}) {
   return `
   <defs>
     <linearGradient id="${id}mt" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">${stops}</linearGradient>
+    ${acc ? `<linearGradient id="${id}am" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">${(MATS[F.capMat] || MATS.chrome).map(([c, o]) => `<stop offset="${o}" stop-color="${c}"/>`).join("")}</linearGradient>` : ""}
     <linearGradient id="${id}rm" gradientUnits="userSpaceOnUse" x1="${cx - bB}" x2="${cx + bB}" y1="0" y2="0">
       <stop offset="0" stop-color="${rs[0]}"/><stop offset=".3" stop-color="${rs[1]}"/><stop offset=".45" stop-color="${rs[2]}"/><stop offset=".8" stop-color="${rs[3]}"/><stop offset="1" stop-color="${rs[0]}"/></linearGradient>
     <linearGradient id="${id}gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${hot}" stop-opacity=".5"/><stop offset=".55" stop-color="${hot}" stop-opacity="0"/></linearGradient>
@@ -759,9 +836,9 @@ function frameSVG(F, geo, opt = {}) {
   ${neon ? `<path d="${glassPath()}" fill="none" stroke="${nc}" stroke-opacity=".7" stroke-width="${Math.max(1.1, L * 0.0035)}" ${nf}/>` : ""}
   ${base} fill="${fill}" ${stroke}/>
   ${neon ? "" : `${base} fill="url(#${id}gb)"/>`}
-  ${F.baseShape === "block" || neon ? "" : `<rect x="${cx - bB * 1.02}" y="${bottom - rim}" width="${bB * 2.04}" height="${rim}" rx="${rim / 2}" fill="${rimFill}"/>`}
+  ${["block", "tripod", "orb", "saucer", "stack"].includes(F.baseShape) || neon ? "" : `<rect x="${cx - bB * 1.02}" y="${bottom - rim}" width="${bB * 2.04}" height="${rim}" rx="${rim / 2}" fill="${rimFill}"/>`}
   <rect x="${cx - hb * 1.1}" y="${gB - 1}" width="${hb * 2.2}" height="${rim * 1.1}" rx="${rim / 2}" fill="${rimFill}" ${neon ? stroke : ""}/>
-  ${cap} fill="${fill}" ${stroke}/>
+  ${cap} fill="${capFill}" ${stroke}/>
   ${neon ? "" : `${cap} fill="url(#${id}gc)"/>`}
   <rect x="${cx - ht * 1.12}" y="${gT - rim * 0.9}" width="${ht * 2.24}" height="${rim}" rx="${rim / 2}" fill="${rimFill}" ${neon ? stroke : ""}/>`;
 }
@@ -1634,7 +1711,8 @@ function renderPresets() {
     box.appendChild(el);
   });
   const add = document.createElement("button"); add.className = "tile add"; add.innerHTML = "<span>+</span><b>Save current</b>";
-  add.onclick = () => { $("#presetForm").classList.toggle("show"); setTimeout(() => $("#presetName").focus(), 50); };
+  add.onclick = () => { const f = $("#presetForm"); f.classList.toggle("show");
+    if (f.classList.contains("show")) { const mb = $("#mineBox"); mb.scrollTo({ top: mb.scrollHeight, behavior: "smooth" }); setTimeout(() => $("#presetName").focus({ preventScroll: true }), 60); } };
   box.appendChild(add); watchTiles(box);
 }
 function tileMenu(el, i) {
@@ -1735,7 +1813,8 @@ function renderLiqs() {
     box.appendChild(b);
   });
 }
-const CAPS = [["cone", "Cone"], ["spike", "Spike"], ["dome", "Dome"], ["knob", "Knob"]], BASES = [["flare", "Flare"], ["fins", "Fins"], ["pedestal", "Pedestal"], ["block", "Block"]];
+const CAPS = [["cone", "Cone"], ["spike", "Spike"], ["dome", "Dome"], ["knob", "Knob"], ["orb", "Orb"], ["flat", "Flat"], ["crown", "Crown"], ["antenna", "Antenna"]],
+  BASES = [["flare", "Flare"], ["fins", "Fins"], ["pedestal", "Pedestal"], ["block", "Block"], ["tripod", "Tripod"], ["orb", "Orb"], ["stack", "Stack"], ["saucer", "Saucer"]];
 function syncLampOpts() {
   const F = curFrame(), mb = $("#matOpts"); if (!mb) return;
   mb.innerHTML = "";
@@ -1746,14 +1825,28 @@ function syncLampOpts() {
   });
   const segs = (box, list, key) => { box.innerHTML = ""; list.forEach(([v, n]) => { const b = document.createElement("button"); b.textContent = n; b.className = F[key] === v ? "on" : ""; b.onclick = () => modLamp({ [key]: v }); box.appendChild(b); }); };
   segs($("#capOpts"), CAPS, "capShape"); segs($("#baseOpts"), BASES, "baseShape");
+  const ab = $("#accOpts"); ab.innerHTML = "";
+  [null, ...Object.keys(MAT_NAMES).filter(m => m !== "neon")].forEach(m => {
+    const b = document.createElement("button"), st = m && MATS[m];
+    b.className = (lampMods.capMat || null) === m ? "on" : ""; b.setAttribute("aria-label", m ? MAT_NAMES[m] : "Same as finish");
+    if (st) b.style.background = `linear-gradient(135deg,${st[1][0]},${st[2][0]},${st[4][0]})`; else b.textContent = "Same";
+    b.onclick = () => modLamp({ capMat: m }); ab.appendChild(b);
+  });
   $("#lampW").value = lampMods.w != null ? lampMods.w : 0.5;
+  $("#lampGH").value = lampMods.gh != null ? lampMods.gh : 0.5;
+  $("#lampCS").value = lampMods.cs != null ? lampMods.cs : 0.5;
+  $("#lampCV").value = lampMods.cv != null ? lampMods.cv : 0.5;
 }
 function modLamp(m) {
   lampMods = { ...lampMods, ...m }; store.set("lampMods", lampMods);
   syncLampOpts(); renderFrames();
-  if ("w" in m) reshapeLamp(); else drawLamp();
+  if ("w" in m || "gh" in m || "cs" in m || "cv" in m || m.reset) reshapeLamp(); else drawLamp();
 }
 $("#lampW").addEventListener("change", e => modLamp({ w: +e.target.value }));
+$("#lampGH").addEventListener("change", e => modLamp({ gh: +e.target.value }));
+$("#lampCS").addEventListener("change", e => modLamp({ cs: +e.target.value }));
+$("#lampCV").addEventListener("change", e => modLamp({ cv: +e.target.value }));
+$("#labReset").addEventListener("click", () => { lampMods = {}; modLamp({ reset: 1 }); });
 $("#lampForm").addEventListener("submit", e => {
   e.preventDefault();
   const name = ($("#lampName").value || "").trim() || "My lamp " + (myLamps.length + 1);
@@ -2078,6 +2171,7 @@ function drawFx(b, t) {
     case "speed": { for (let i = 0; i < 6; i++) { const x = ((t * (0.05 + 0.5 * v) + i / 6) % 1) * fw; circ(x, H / 2 + Math.sin(i * 2) * 8, 3, "rgba(255,255,255,.5)"); } break; }
     case "wobble": { c.fillStyle = "rgba(255,255,255,.28)"; c.beginPath(); for (let a = 0; a <= 6.3; a += 0.2) { const rr = 11 * (1 + (0.04 + 0.3 * v) * Math.sin(a * 3 + t * 2)), x = fw - 26 + Math.cos(a) * rr, y = H / 2 + Math.sin(a) * rr; a ? c.lineTo(x, y) : c.moveTo(x, y); } c.fill(); break; }
     case "dim": { c.fillStyle = `rgba(0,0,0,${0.7 * v})`; c.fillRect(0, 0, fw, H); break; }
+    case "lampGH": case "lampCS": case "lampCV": break;
     case "lampW": { const w = 6 + v * 18; c.strokeStyle = "rgba(255,255,255,.45)"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(fw - 20 - w, H / 2); c.lineTo(fw - 20 + w * 0.2, H / 2); c.stroke(); break; }
     default: { // volume, ambience: a soft moving sound wave
       const amb = b.id === "ambVol";
@@ -2323,7 +2417,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v43 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v44 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
