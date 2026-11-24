@@ -143,6 +143,13 @@
   .catpick em{font-style:normal;font-weight:500;font-size:12px;opacity:.55}
   .catpick b{width:9px;height:9px;border-right:2px solid rgba(255,255,255,.7);border-bottom:2px solid rgba(255,255,255,.7);transform:translateY(-2px) rotate(45deg);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
   .catpick[aria-expanded="true"] b{transform:translateY(2px) rotate(-135deg)}
+  .phead{position:relative}
+  .shuffle{position:absolute;right:0;top:10px;display:flex;align-items:center;gap:6px;height:34px;padding:0 13px 0 10px;border:none;border-radius:17px;color:#fff;font-size:13px;font-weight:600;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--cool) 55%,rgba(255,255,255,.1)),color-mix(in srgb,var(--hot) 55%,rgba(255,255,255,.1)));box-shadow:0 4px 16px color-mix(in srgb,var(--hot) 30%,transparent)}
+  .shuffle svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+  .shuffle.spin svg{transform:rotate(360deg)}
+  .catpick.static{pointer-events:none}
+  .catpick.static b{opacity:0}
   .catgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:0;opacity:0;overflow:hidden;transition:max-height .42s cubic-bezier(.2,.8,.2,1),opacity .3s ease,margin .42s;margin-top:0}
   .catgrid.open{max-height:260px;opacity:1;margin-top:8px}
   .catgrid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 1px 7px;border:none;border-radius:14px;background:rgba(255,255,255,.06);color:#fff;font-size:10px;line-height:1.1;min-width:0}
@@ -346,6 +353,7 @@
     <div class="row"><span>Particles</span><input type="range" id="part" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Flow speed</span><input type="range" id="speed" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Wobble</span><input type="range" id="wobble" min="0" max="1" step="0.01"></div>
+    <div class="row" style="margin-top:6px"><span>Shake &amp; tilt</span><button class="switch" id="swMotion" aria-label="Shake to stir and tilt to drift"></button></div>
   </section>
 
   <section class="card" data-card="lamp">
@@ -384,6 +392,7 @@
     <div class="row"><span>Ambience</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Pops</span><input type="range" id="popVol" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Stir tones</span><input type="range" id="toneVol" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Lava blubs</span><input type="range" id="lavaVol" min="0" max="1" step="0.01"></div>
     <div class="seg" id="toneSeg" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
       <button data-t="chime">Chime</button><button data-t="glass">Glass</button><button data-t="soft">Soft</button>
     </div>
@@ -392,6 +401,7 @@
 
   <section class="card" data-card="presets">
     <div class="phead">
+      <button class="shuffle" id="shuffleBtn" aria-label="Shuffle a random look"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h3.5c2 0 3.2.9 4.3 2.6l2.4 4.8c1.1 1.7 2.3 2.6 4.3 2.6H21M17.5 14l3.5 3-3.5 3M3 17h3.5c1.3 0 2.3-.4 3.1-1.1M13.4 8.1c.8-.7 1.8-1.1 3.1-1.1H21M17.5 4l3.5 3-3.5 3"/></svg><span>Shuffle</span></button>
       <div class="chead"><span>Presets</span><span id="presetHint">a library of looks · tap to try one</span></div>
       <div class="seg two" id="presetTabs"><button data-p="lib">Library</button><button data-p="mine">My presets</button></div>
       <button class="catpick" id="catPick" aria-expanded="false"><i id="catSw"></i><span id="catName">All looks</span><em id="catCount"></em><b aria-hidden="true"></b></button>
@@ -669,7 +679,7 @@ function screenSize() {
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
 let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
-let ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), trans = store.get("trans", 0.4), lightMode = store.get("lightMode", "bulb");
+let lavaVol = store.get("lavaVol", 0.6), ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), trans = store.get("trans", 0.4), lightMode = store.get("lightMode", "bulb");
 let particles = store.get("particles", 0.5), light = store.get("light", 0.5), shadow = store.get("shadow", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
@@ -1086,7 +1096,37 @@ function flowAt(x, y) {
 }
 const relax = (rate, dt) => 1 - Math.exp(-rate * dt);
 
+// ---- shake & tilt: tip the phone and the wax drifts downhill; give it a shake and it sloshes around
+let motionOn = store.get("motion", true), tiltX = 0, tiltS = 0, lastShake = 0, motionOK = false;
+const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function onMotion(e) {
+  if (!motionOn || !started) return;
+  const gI = e.accelerationIncludingGravity, a = e.acceleration;
+  if (gI && gI.x != null) {
+    let x = gI.x / 9.81; if (!IOS) x = -x;          // + = the right side is lower
+    const ang = screen.orientation ? screen.orientation.angle : (window.orientation || 0);
+    if (ang === 90 || ang === -90 || ang === 270) x = (IOS ? 1 : -1) * (gI.y / 9.81) * (ang === 90 ? -1 : 1);
+    tiltX = clamp(x, -1, 1);
+  }
+  if (a && a.x != null) {
+    const mag = Math.hypot(a.x, a.y, a.z || 0), now = performance.now();
+    if (mag > 13 && now - lastShake > 90) {
+      lastShake = now;
+      const sx = (IOS ? 1 : -1) * a.x, sy = (IOS ? -1 : 1) * a.y, k = Math.min(mag, 40) * 55;
+      for (let i = 0; i < 3; i++) stir(tank.x0 + Math.random() * tank.w, tank.y0 + Math.random() * tank.h, sx / mag * k + (Math.random() - 0.5) * k * 0.6, sy / mag * k + (Math.random() - 0.5) * k * 0.6, 0.05);
+    }
+  }
+}
+function askMotion() {
+  if (motionOK) return;
+  const D = window.DeviceMotionEvent;
+  if (D && typeof D.requestPermission === "function") D.requestPermission().then(r => { if (r === "granted") { motionOK = true; addEventListener("devicemotion", onMotion); } }).catch(() => {});
+  else if (D) { motionOK = true; addEventListener("devicemotion", onMotion); }
+}
 function step(dt) {
+  // tilt: a gentle sideways pull toward the lower side (with a small dead zone so a slightly crooked hand does nothing)
+  tiltS += ((Math.abs(tiltX) < 0.08 || !motionOn ? 0 : tiltX - Math.sign(tiltX) * 0.08) - tiltS) * Math.min(1, dt * 3);
+  if (tiltS) { const f = tiltS * 120 * g * dt; for (const b of blobs) if (!b.dying) b.vx += f * (b.p ? 1.3 : 1); for (const b of bubbles) b.vx += f * 0.5; }
   // sub-step for stable springs when a frame runs long
   if (dt > 0.025) { const n = Math.ceil(dt / 0.02); for (let i = 0; i < n; i++) step1(dt / n); }
   else step1(dt);
@@ -1251,6 +1291,7 @@ function step1(dt) {
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
               sm.dying = big; touchTime.delete(key); alive--;
+              audio.blub(clamp(big.tr / (u * 0.12), 0, 1), true);
               if (sm === a) break; else continue;
             }
           } else touchTime.delete(key);
@@ -1583,7 +1624,7 @@ function frame(now) {
 
 /* ---------- audio ---------- */
 const audio = (() => {
-  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, fb, hideT = 0;
+  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
   const SCALE = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
   function init() {
     if (AC) return;
@@ -1591,13 +1632,14 @@ const audio = (() => {
     master = AC.createGain(); master.gain.value = 0; master.connect(AC.destination);
     dry = AC.createGain(); dry.connect(master);
     ambBus = AC.createGain(); ambBus.connect(master);
-    popBus = AC.createGain(); toneBus = AC.createGain();
+    popBus = AC.createGain(); toneBus = AC.createGain(); lavaBus = AC.createGain();
     const delay = AC.createDelay(1); delay.delayTime.value = 0.37;
     fb = AC.createGain(); fb.gain.value = 0.42;
     const dl = AC.createBiquadFilter(); dl.type = "lowpass"; dl.frequency.value = 1600;
     fx = AC.createGain(); fx.gain.value = 0.55;
     fx.connect(delay); delay.connect(dl); dl.connect(fb); fb.connect(delay); dl.connect(master);
     for (const bus of [popBus, toneBus]) { bus.connect(dry); bus.connect(fx); }
+    { const lf = AC.createBiquadFilter(); lf.type = "lowpass"; lf.frequency.value = 900; lavaBus.connect(lf); lf.connect(dry); lf.connect(fx); }
 
     ambF = AC.createBiquadFilter(); ambF.type = "lowpass"; ambF.frequency.value = 340; ambF.Q.value = 0.8;
     amb = AC.createGain(); amb.gain.value = 0.5; ambF.connect(amb); amb.connect(ambBus);
@@ -1622,6 +1664,7 @@ const audio = (() => {
     ambBus.gain.setTargetAtTime(ambVol * 1.4, AC.currentTime, 0.3);
     popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
     toneBus.gain.setTargetAtTime(toneVol * 1.4, AC.currentTime, 0.1);
+    lavaBus.gain.setTargetAtTime(lavaVol * 1.6, AC.currentTime, 0.1);
   }
   function resume() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
   function env(o, peak, a, rel, bus) {
@@ -1670,6 +1713,18 @@ const audio = (() => {
       const o = AC.createOscillator(); o.type = "sine"; const tt = AC.currentTime;
       o.frequency.setValueAtTime(900, tt); o.frequency.exponentialRampToValueAtTime(1700, tt + 0.06);
       env(o, 0.05, 0.005, 0.12, popBus);
+    },
+    // a thick, low "blub": a sine that sags in pitch, with a softer echo a moment later (size 0..1: bigger = deeper)
+    blub(size, merge) {
+      if (!AC || !soundOn || lavaVol <= 0.001) return;
+      const now = performance.now(); if (now - lastBlub < 220) return; lastBlub = now;
+      const base = 55 + (1 - size) * 75 + Math.random() * 12;
+      [[0, 1, 0.34], [0.11, merge ? 0.72 : 1.35, 0.14]].forEach(([dly, mul, pk]) => setTimeout(() => {
+        if (!AC) return;
+        const o = AC.createOscillator(), tt = AC.currentTime, f0 = base * mul * 1.6;
+        o.type = "sine"; o.frequency.setValueAtTime(f0, tt); o.frequency.exponentialRampToValueAtTime(f0 * (merge ? 0.55 : 0.8), tt + 0.32);
+        env(o, pk, 0.02, 0.42, lavaBus);
+      }, dly * 1000));
     },
     bloop(size) {
       if (!AC || !soundOn || popVol <= 0.001) return;
@@ -1821,6 +1876,7 @@ function syncUI() {
   $("#amt").value = amount; $("#part").value = particles; $("#light").value = light; $("#shadow").value = shadow;
   $("#swSound").classList.toggle("on", soundOn);
   $("#swCue").classList.toggle("on", cueOn);
+  $("#swMotion").classList.toggle("on", motionOn);
   $("#vol").value = volume;
   [...$("#breathSeg").children].forEach(b => b.classList.toggle("on", b.dataset.id === breathId));
   { const t = themeById(themeId), now = { hot: t.hot, cool: t.cool, liq: t.liqBot };
@@ -1952,7 +2008,7 @@ function renderFeatured(anim) {
   [...grid0.children].forEach(b => b.classList.toggle("on", b.dataset.c === libCat));
   $("#catSw").style.background = CAT_SW[libCat]; $("#catName").textContent = libCat === "All" ? "All looks" : libCat;
   $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favs.size : LIBRARY.filter(p => p.cat === libCat).length;
-  $("#catPick").classList.toggle("off", presetTab !== "lib"); if (presetTab !== "lib") catOpen(false);
+
   box.innerHTML = ""; let k = 0;
   if (libCat === "Favourites") {
     const fl = LIBRARY.filter(p => favs.has(favKey(p, false))), fm = presets.filter(p => favs.has(favKey(p, true)));
@@ -1973,9 +2029,7 @@ function renderFeatured(anim) {
     box.appendChild(grid); watchTiles(grid);
   }
   if (anim) { box.classList.remove("enter"); void box.offsetWidth; box.classList.add("enter"); setTimeout(() => box.classList.remove("enter"), 900); }
-  [...$("#presetTabs").children].forEach(b => b.classList.toggle("on", b.dataset.p === presetTab));
-  $("#libBox").hidden = presetTab !== "lib"; $("#mineBox").hidden = presetTab !== "mine";
-  $("#presetHint").textContent = presetTab === "lib" ? "tap to try · hold to favourite" : "tap to apply · hold for options";
+  syncPresetTab();
 }
 // press and hold any tile to favourite it (a quick tap still applies the look)
 function holdToFav(b, p, mine, onTap) {
@@ -1994,8 +2048,22 @@ function toggleFav(p, mine, el) {
   showToast(on ? "♥ Added to favourites" : "Removed from favourites");
   if (!on && libCat === "Favourites" && !mine) renderFeatured(true);
 }
+// a random look from what you're browsing (the current collection, your favourites, or your own presets)
+function shufflePick() {
+  let pool = presetTab === "mine" ? presets : libCat === "All" ? LIBRARY
+    : libCat === "Favourites" ? [...LIBRARY.filter(p => favs.has(favKey(p, false))), ...presets.filter(p => favs.has(favKey(p, true)))]
+    : LIBRARY.filter(p => p.cat === libCat);
+  if (!pool.length) pool = LIBRARY;
+  const opts = pool.length > 1 ? pool.filter(p => p.name !== activePreset) : pool;
+  const p = opts[Math.floor(Math.random() * opts.length)];
+  const btn = $("#shuffleBtn"); btn.classList.remove("spin"); void btn.offsetWidth; btn.classList.add("spin");
+  applyPreset(p);
+  const t = [...document.querySelectorAll("#sheet .tile[data-name]")].find(x => x.dataset.name === p.name && x.offsetParent);
+  if (t) t.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+$("#shuffleBtn").addEventListener("click", shufflePick);
 function catOpen(on) { $("#catGrid").classList.toggle("open", on); $("#catPick").setAttribute("aria-expanded", on ? "true" : "false"); }
-$("#catPick").addEventListener("click", () => catOpen($("#catPick").getAttribute("aria-expanded") !== "true"));
+$("#catPick").addEventListener("click", () => presetTab === "lib" && catOpen($("#catPick").getAttribute("aria-expanded") !== "true"));
 // choosing a collection: the grid folds away and the new looks rise in, no blank moment
 function pickCat(c) {
   catOpen(false);
@@ -2005,9 +2073,21 @@ function pickCat(c) {
 [...$("#presetTabs").children].forEach(b => b.onclick = () => {
   if (presetTab === b.dataset.p) return;
   presetTab = b.dataset.p; store.set("presetTab", presetTab);
+  syncPresetTab();
   const box = presetTab === "lib" ? $("#libBox") : $("#mineBox");
-  renderFeatured(presetTab === "lib"); box.scrollTop = 0; box.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "ease-out" });
+  box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" });
 });
+// only flips what's shown; the library is built once and kept
+function syncPresetTab() {
+  const lib = presetTab === "lib";
+  [...$("#presetTabs").children].forEach(b => b.classList.toggle("on", b.dataset.p === presetTab));
+  $("#libBox").hidden = !lib; $("#mineBox").hidden = lib;
+  const pick = $("#catPick"); pick.classList.toggle("static", !lib); if (!lib) catOpen(false);
+  if (lib) { $("#catSw").style.background = CAT_SW[libCat]; $("#catName").textContent = libCat === "All" ? "All looks" : libCat;
+    $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favs.size : LIBRARY.filter(p => p.cat === libCat).length; }
+  else { $("#catSw").style.background = "linear-gradient(135deg,var(--cool),var(--hot))"; $("#catName").textContent = "Your presets"; $("#catCount").textContent = presets.length; }
+  $("#presetHint").textContent = lib ? "tap to try · hold to favourite" : "tap to apply · hold for options";
+}
 function cycleTheme(dir) {
   const ids = [...THEMES.map(x => x.id), "custom"];
   const i = (ids.indexOf(themeId) + dir + ids.length) % ids.length;
@@ -2146,6 +2226,7 @@ sheet.addEventListener("touchcancel", endDrag);
 controls.querySelectorAll(".ctl[data-card]").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
 function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
 $("#swSound").onclick = () => setSound(!soundOn);
+$("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else tiltX = 0; syncUI(); };
 $("#swCue").onclick = () => {
   cueOn = !cueOn; store.set("cue", cueOn);
   if (!cueOn) cueEl.style.opacity = 0; else if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
@@ -2158,6 +2239,7 @@ $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount)
 document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => { if (el.closest('[data-card="presets"]')) return; el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
   if (activePreset) { activePreset = null; store.set("activePreset", null); markActive(); }
 }); });
+$("#lavaVol").addEventListener("input", e => { lavaVol = +e.target.value; store.set("lavaVol", lavaVol); audio.level(); });
 for (const [id, key] of [["ambVol", "ambVol"], ["popVol", "popVol"], ["toneVol", "toneVol"]]) {
   $("#" + id).oninput = e => { const v = +e.target.value; if (key === "ambVol") ambVol = v; else if (key === "popVol") popVol = v; else toneVol = v; store.set(key, v); audio.level(); };
 }
@@ -2466,6 +2548,7 @@ function tap(x, y) {
     blobs.push(c);
   }
   audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
+  audio.blub(clamp(hit.tr / (u * 0.12), 0, 1), false);
 }
 canvas.addEventListener("pointerdown", e => {
   if (sleepFade > 0.02 && sleepAt && Date.now() > sleepAt) { sleepWake = true; sleepMin = 0; sleepAt = 0; syncEx(); }
@@ -2520,7 +2603,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v48 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v49 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -2529,6 +2612,7 @@ $("#start").addEventListener("click", () => {
   started = true;
   $("#start").classList.add("gone");
   audio.init(); if (soundOn) audio.resume(); audio.level();
+  if (motionOn) askMotion();
   keepAwake(); wake(); heal();
   if (breathPhase >= 0) showCue(PHASE_LABEL[breathPhase]);
 });
