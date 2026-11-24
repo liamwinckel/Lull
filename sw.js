@@ -1,4 +1,4 @@
-const CACHE = "lull-v46";
+const CACHE = "lull-v47";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-v2-180.png", "icon-v2-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => {

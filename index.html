@@ -1997,13 +1997,12 @@ function openSheet(name) {
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
   placeSheet(name); sheet.classList.toggle("fixedhead", name === "presets");
-  { const card = sheet.querySelector(`.card[data-card="${name}"]`); if (PAGED[name] && card) { paginate(card); const pg = card.querySelector(".pager"); if (pg) pg.scrollLeft = 0; } }
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
   requestAnimationFrame(frameView);
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
 }
 // split a long tab into side-by-side pages so the panel stays short and the lava stays visible
-const PAGED = { look: 1, light: 1, lava: 1, calm: 1 };
+const PAGED = {};   // paging removed: panels scroll vertically as before
 function paginate(card) {
   if (card.dataset.paged) return; card.dataset.paged = 1;
   const head = card.querySelector(".chead"), kids = [...card.children].filter(el => el !== head);
@@ -2481,7 +2480,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v46 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v47 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
