@@ -87,6 +87,13 @@
   .frame span{opacity:.8}
   .frame.del{border-color:#ff6b6b}
   .frame.mine{background:rgba(255,255,255,.09)}
+  .pager{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -12px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .pager::-webkit-scrollbar{display:none}
+  .pager .page{flex:0 0 100%;box-sizing:border-box;padding:0 12px;scroll-snap-align:start;scroll-snap-stop:always}
+  .pdots{display:flex;justify-content:center;align-items:center;gap:6px;padding:8px 0 0}
+  .pdots button{border:none;padding:0;height:7px;width:7px;border-radius:4px;background:rgba(255,255,255,.28);transition:width .35s cubic-bezier(.2,.8,.2,1),background .3s}
+  .pdots button.on{width:22px;background:rgba(255,255,255,.85)}
+  .chead .pgname{font-size:11.5px;opacity:.6;transition:opacity .2s}
   .labh{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.55;margin:14px 2px 8px}
   .labh small{text-transform:none;letter-spacing:0;font-weight:400;opacity:.8;margin-left:4px}
   .seg.four{display:grid !important;grid-template-columns:repeat(4,1fr);gap:4px}
@@ -189,7 +196,11 @@
   .lbar.drag .lfill{transition:none}
   .lfill{overflow:hidden}
   .lfill canvas{position:absolute;left:0;top:0;height:100%;pointer-events:none}
-  #sheet.peek .row.lbar.active{background:rgba(255,255,255,.06);border-radius:23px;padding:0 16px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+  #sheet.peek{background:transparent !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;border-color:transparent !important;box-shadow:none !important}
+  #sheet.peek .card > *,#sheet.peek .pager .page > *,#sheet.peek .pdots{opacity:0 !important;transition:opacity .25s ease}
+  #sheet.peek .card > .pager,#sheet.peek .card > .pager .page{opacity:1 !important}
+  #sheet.peek .row.lbar.active,#sheet.peek .card > .row.active,#sheet.peek .page > .row.active{opacity:1 !important}
+  #sheet.peek .row.lbar.active{background:rgba(20,16,20,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:23px;padding:0 13px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
   .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
@@ -1986,9 +1997,34 @@ function openSheet(name) {
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
   placeSheet(name); sheet.classList.toggle("fixedhead", name === "presets");
+  { const card = sheet.querySelector(`.card[data-card="${name}"]`); if (PAGED[name] && card) { paginate(card); const pg = card.querySelector(".pager"); if (pg) pg.scrollLeft = 0; } }
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
   requestAnimationFrame(frameView);
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
+}
+// split a long tab into side-by-side pages so the panel stays short and the lava stays visible
+const PAGED = { look: 1, light: 1, lava: 1, calm: 1 };
+function paginate(card) {
+  if (card.dataset.paged) return; card.dataset.paged = 1;
+  const head = card.querySelector(".chead"), kids = [...card.children].filter(el => el !== head);
+  const maxH = Math.max(190, Math.min(300, H * 0.34));
+  const pages = [[]]; let h = 0;
+  for (const el of kids) {
+    const cs = getComputedStyle(el), eh = el.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    const isHead = el.classList.contains("chead") || el.classList.contains("labh");
+    if (h + eh > maxH && pages[pages.length - 1].length) { pages.push([]); h = 0; }
+    if (isHead && h > maxH * 0.7 && pages[pages.length - 1].length) { pages.push([]); h = 0; }   // don't strand a heading at the bottom
+    pages[pages.length - 1].push(el); h += eh;
+  }
+  if (pages.length < 2) return;
+  const pager = document.createElement("div"); pager.className = "pager";
+  pages.forEach(list => { const pg = document.createElement("div"); pg.className = "page"; list.forEach(el => pg.appendChild(el)); pager.appendChild(pg); });
+  const dots = document.createElement("div"); dots.className = "pdots";
+  pages.forEach((_, i) => { const d = document.createElement("button"); d.setAttribute("aria-label", "Page " + (i + 1)); d.onclick = () => pager.scrollTo({ left: i * pager.clientWidth, behavior: "smooth" }); dots.appendChild(d); });
+  const sync = () => { const i = Math.round(pager.scrollLeft / Math.max(1, pager.clientWidth)); [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i)); };
+  pager.addEventListener("scroll", sync, { passive: true });
+  card.appendChild(pager); card.appendChild(dots); sync();
+  card.querySelectorAll(":scope > *").forEach((el, i) => el.style.setProperty("--i", i));
 }
 function placeSheet(name) {
   const pw = Math.round(clamp(W * 0.58, 210, 330)), tall = name === "lamp" || name === "presets";
@@ -2445,7 +2481,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v45 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v46 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
