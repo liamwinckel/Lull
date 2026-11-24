@@ -894,7 +894,7 @@ const contacts = new Set();
 const touchTime = new Map();
 const NEVER = 0.06;
 const mergeAfter = () => absorb < NEVER ? Infinity : 0.1 + 22 * Math.pow(1 - (absorb - NEVER) / (1 - NEVER), 3);   // top = merges on contact
-const cushion = () => 0.1 * Math.pow(1 - absorb, 2);   // contact right at their visible edges: they touch and press, no invisible gap
+const cushion = () => 0;
 const mergeCap = () => absorb > 0.9 ? Infinity : u * RANGE()[1] * (1.6 + 4 * absorb * absorb);   // size limit loosens, gone at the top
 // A droplet only splashes off a large blob on a genuinely hard impact (wall or another blob), never from a
 // finger swish or a soft bump. One at a time, with a cooldown, so it stays a rare, believable event.
@@ -1106,7 +1106,7 @@ function step1(dt) {
         {
           const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), key = a.seed + c.seed;
           const reach = (a.r + c.r) * bs * (0.92 + cushion());   // Merging only decides how willing they are once they touch: no pull, no push
-          if (d < reach && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
+          if (absorb >= NEVER && d < reach && a.noMerge <= 0 && c.noMerge <= 0 && Math.hypot(a.tr, c.tr) < mergeCap()) {
             const rel = Math.hypot(c.vx - a.vx, c.vy - a.vy), w = 1 - 0.8 * (1 - absorb) * Math.min(1, rel / (160 * g));
             // touching and on the way to merging: they gradually move as one (no tug, no sudden lurch)
             const ma0 = a.r * a.r, mc0 = c.r * c.r, mvx = (a.vx * ma0 + c.vx * mc0) / (ma0 + mc0), mvy = (a.vy * ma0 + c.vy * mc0) / (ma0 + mc0), kv = relax(1.2, dt);
@@ -1127,9 +1127,10 @@ function step1(dt) {
         // soft and smooth: a gentle spring pushes them apart and the syrup damps their approach
         const nx = dx / d, ny = dy / d, ma = a.r * a.r, mc = c.r * c.r, wa = mc / (ma + mc);
         const ready = clamp((touchTime.get(a.seed + c.seed) || 0) / Math.max(mergeAfter(), 0.001), 0, 1);
-        const firm = (0.6 + 0.5 * Math.pow(1 - absorb, 2)) * (1 - ready), over = (rr - d) / rr;
+        // only once they're actually overlapping: a soft press, with just a touch of give (no braking as they approach)
+        const firm = 0.6 * (1 - ready), over = (rr - d) / rr;
         const f = over * over * 900 * g * firm * dt;
-        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(4, dt) * firm : 0;
+        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny, damp = vn < 0 ? -vn * relax(1.2, dt) * firm * Math.min(1, over * 4) : 0;
         a.vx -= nx * (f + damp) * wa; a.vy -= ny * (f + damp) * wa; c.vx += nx * (f + damp) * (1 - wa); c.vy += ny * (f + damp) * (1 - wa);
         // low Merging: even when squeezed together at the bottom, they keep a thin gap and never fuse
         const hold = 0;
@@ -1231,8 +1232,7 @@ function particleStep(dt, bs) {
     if (!q.touched) q.touchT = Math.max(0, (q.touchT || 0) - dt * 0.6);   // contact memory fades, it doesn't reset
     q.touched = false;
     for (const b of big) {
-      const hold = 0;
-      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * (0.95 + 0.22 * hold) + q.r * (0.7 + 1.1 * hold);
+      const dx = q.x - b.x, dy = q.y - b.y, d = Math.hypot(dx, dy) || 1, R = b.r * bs * 0.95 + q.r * 0.7;
       if (d >= R) continue;
       const nx = dx / d, ny = dy / d;
       if ((count > target || q.excess) && (q.age > 0.5 || q.excess)) { q.dying = b; count--; break; }   // an extra merges with the blob it touches
@@ -1245,8 +1245,7 @@ function particleStep(dt, bs) {
       q.vx += nx * f; q.vy += ny * f;
       const kv = relax(2, dt); q.vx += (b.vx - q.vx) * kv * ready; q.vy += (b.vy - q.vy) * kv * ready;
       const vn = (q.vx - b.vx) * nx + (q.vy - b.vy) * ny;
-      if (vn < 0) { q.vx -= nx * vn * relax(5, dt) * firm; q.vy -= ny * vn * relax(5, dt) * firm; }   // can't plough through
-   // at the bottom, droplets rest against blobs, never inside
+      if (vn < 0) { const kd = relax(2, dt) * firm * Math.min(1, over * 4); q.vx -= nx * vn * kd; q.vy -= ny * vn * kd; }   // a gentle give once really pressing in
     }
   }
   for (const q of blobs) if (q.p && q.excess && !q.dying && big.length) {
@@ -2300,7 +2299,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v41 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v42 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
