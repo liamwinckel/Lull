@@ -143,9 +143,9 @@
   .catpick em{font-style:normal;font-weight:500;font-size:12px;opacity:.55}
   .catpick b{width:9px;height:9px;border-right:2px solid rgba(255,255,255,.7);border-bottom:2px solid rgba(255,255,255,.7);transform:translateY(-2px) rotate(45deg);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
   .catpick[aria-expanded="true"] b{transform:translateY(2px) rotate(-135deg)}
-  .catgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:0;opacity:0;overflow:hidden;transition:max-height .42s cubic-bezier(.2,.8,.2,1),opacity .3s ease,margin .42s;margin-top:0}
-  .catgrid.open{max-height:220px;opacity:1;margin-top:8px}
-  .catgrid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px 7px;border:none;border-radius:16px;background:rgba(255,255,255,.06);color:#fff;font-size:11px;line-height:1.1}
+  .catgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-height:0;opacity:0;overflow:hidden;transition:max-height .42s cubic-bezier(.2,.8,.2,1),opacity .3s ease,margin .42s;margin-top:0}
+  .catgrid.open{max-height:260px;opacity:1;margin-top:8px}
+  .catgrid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 1px 7px;border:none;border-radius:14px;background:rgba(255,255,255,.06);color:#fff;font-size:10px;line-height:1.1;min-width:0}
   .catgrid button.on{background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.6)}
   @keyframes tileIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
   #featList.enter .tile,#featList.enter .catlabel{animation:tileIn .38s cubic-bezier(.2,.8,.2,1) backwards;animation-delay:calc(var(--k,0) * 22ms)}
@@ -155,11 +155,18 @@
   .cats button.on{background:rgba(255,255,255,.24)}
   .catlabel{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.55;margin:6px 2px 8px;scroll-margin-top:8px}
   #mineBox[hidden],#libBox[hidden]{display:none}
+  .tile::before{content:"";position:absolute;right:8px;top:8px;width:18px;height:18px;z-index:2;pointer-events:none;opacity:0;transform:scale(.4);
+    transition:opacity .3s,transform .45s cubic-bezier(.2,1.4,.4,1);
+    background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ff5a7a' stroke='white' stroke-width='1.6' d='M12 20.5s-7.5-4.6-7.5-10.1A4.2 4.2 0 0 1 12 7.6a4.2 4.2 0 0 1 7.5 2.8c0 5.5-7.5 10.1-7.5 10.1z'/%3E%3C/svg%3E");
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}
+  .tile.fav::before{opacity:1;transform:none}
+  .tile.holding{transform:scale(.95);transition:transform .45s ease}
+  .favempty{text-align:center;opacity:.6;font-size:13px;padding:40px 10px;line-height:1.5}
   .tile.add{background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
   .tile.add span{font-size:28px;font-weight:300;opacity:.8;line-height:1}
   .tile.add b{position:static;font-weight:500;opacity:.8}
-  .tile .tmenu{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:10px;background:rgba(10,8,10,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:rise .3s ease}
-  .tile .tmenu button{border:none;border-radius:12px;padding:8px;background:rgba(255,255,255,.14);color:#fff;font-size:13px}
+  .tile .tmenu{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:8px;background:rgba(10,8,10,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:rise .3s ease}
+  .tile .tmenu button{border:none;border-radius:12px;padding:5px 6px;font-size:12px !important;background:rgba(255,255,255,.14);color:#fff;font-size:13px}
   .tile .tmenu button:last-child{background:rgba(255,90,90,.25)}
   .tile.editing{display:flex;align-items:center;gap:4px;padding:0 6px;background:rgba(255,255,255,.08)}
   .tile.editing input{flex:1;min-width:0;border:none;background:rgba(0,0,0,.3);border-radius:10px;color:#fff;font:inherit;font-size:16px;padding:8px;outline:none;-webkit-user-select:text;user-select:text}
@@ -1750,12 +1757,14 @@ function tileMenu(el, i) {
   const m = document.createElement("div"); m.className = "tmenu";
   const rn = document.createElement("button"); rn.textContent = "Rename";
   const dl = document.createElement("button"); dl.textContent = "Delete";
+  const fv = document.createElement("button"); const fk = favKey(presets[i], true); fv.textContent = favs.has(fk) ? "Unfavourite" : "♥ Favourite";
+  fv.onclick = e => { e.stopPropagation(); if (performance.now() - t0 < 300) return; m.remove(); el.classList.remove("menu"); toggleFav(presets[i], true, el); };
   const cancel = () => { m.remove(); el.classList.remove("menu"); };
   rn.onclick = e => { e.stopPropagation(); if (performance.now() - t0 < 300) return; m.remove(); renamePreset(i, el); };
   dl.onclick = e => { e.stopPropagation(); if (dl.dataset.armed) { presets.splice(i, 1); store.set("presets", presets); renderPresets(); } else { dl.dataset.armed = 1; dl.textContent = "Sure?"; } };
   const t0 = performance.now();
   m.onclick = e => { e.stopPropagation(); if (e.target === m && performance.now() - t0 > 500) cancel(); };   // ignore the release of the hold itself
-  m.append(rn, dl); el.appendChild(m);
+  m.append(fv, rn, dl); el.appendChild(m);
   setTimeout(() => { if (m.isConnected) cancel(); }, 6000);
 }
 $("#presetForm").addEventListener("submit", e => {
@@ -1904,9 +1913,11 @@ function presetLook(v) {
   return { t, F: frameWith(v.frame || frameId, v.lampMods) };
 }
 // a little picture of the whole look: its liquid, its wax, and its actual lamp
+let favs = new Set(store.get("favs", []));
+const favKey = (p, mine) => (mine ? "mine:" : "lib:") + p.name;
 function presetTile(p, i) {
   const v = p.s, { t, F } = presetLook(v), b = document.createElement("button");
-  b.className = "tile" + (activePreset === p.name ? " on" : ""); b.dataset.name = p.name;
+  b.className = "tile" + (activePreset === p.name ? " on" : "") + (favs.has(favKey(p, i != null)) ? " fav" : ""); b.dataset.name = p.name;
   if (v.vib != null) b.style.filter = `saturate(${(0.35 + 1.3 * v.vib).toFixed(2)})`;
   const op = 1 - (v.trans ?? 0.3) * 0.45;
   b.style.background = `radial-gradient(90% 70% at 72% 105%,${t.hot}55,transparent 65%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
@@ -1929,30 +1940,59 @@ const nudgeAll = () => { clearTimeout(scrollNudge); scrollNudge = setTimeout(() 
 for (const el of [sheet, $("#libBox"), $("#mineBox")]) el.addEventListener("scroll", nudgeAll, { passive: true });
 function watchTiles(box) { if (tileIO) box.querySelectorAll(".tile, .frame").forEach(t => tileIO.observe(t)); }
 let presetTab = store.get("presetTab", "lib"), libCat = "All";
-const CATS = ["All", ...new Set(LIBRARY.map(p => p.cat))];
+const CATS = ["All", "Favourites", ...new Set(LIBRARY.map(p => p.cat))];
 const CAT_SW = {};
-for (const c of CATS.slice(1)) { const cs = LIBRARY.filter(p => p.cat === c).slice(0, 4).map(p => themeById(p.s.theme).hot); CAT_SW[c] = `conic-gradient(from 200deg,${cs.join(",")},${cs[0]})`; }
-CAT_SW.All = `conic-gradient(from 0deg,${CATS.slice(1).map(c => themeById(LIBRARY.find(p => p.cat === c).s.theme).hot).join(",")},${themeById(LIBRARY[0].s.theme).hot})`;
+CAT_SW.Favourites = "radial-gradient(circle at 35% 35%,#ffd0dc,#ff5a7a 55%,#8a1030)";
+for (const c of CATS.slice(2)) { const cs = LIBRARY.filter(p => p.cat === c).slice(0, 4).map(p => themeById(p.s.theme).hot); CAT_SW[c] = `conic-gradient(from 200deg,${cs.join(",")},${cs[0]})`; }
+CAT_SW.All = `conic-gradient(from 0deg,${CATS.slice(2).map(c => themeById(LIBRARY.find(p => p.cat === c).s.theme).hot).join(",")},${themeById(LIBRARY[0].s.theme).hot})`;
 function renderFeatured(anim) {
   const box = $("#featList"); if (!box) return;
   const grid0 = $("#catGrid");
   if (!grid0.children.length) CATS.forEach(c => { const b = document.createElement("button"); b.dataset.c = c; b.innerHTML = `<i style="background:${CAT_SW[c]}"></i>${c === "All" ? "All looks" : c}`; b.onclick = () => pickCat(c); grid0.appendChild(b); });
   [...grid0.children].forEach(b => b.classList.toggle("on", b.dataset.c === libCat));
   $("#catSw").style.background = CAT_SW[libCat]; $("#catName").textContent = libCat === "All" ? "All looks" : libCat;
-  $("#catCount").textContent = libCat === "All" ? LIBRARY.length : LIBRARY.filter(p => p.cat === libCat).length;
+  $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favs.size : LIBRARY.filter(p => p.cat === libCat).length;
   $("#catPick").classList.toggle("off", presetTab !== "lib"); if (presetTab !== "lib") catOpen(false);
   box.innerHTML = ""; let k = 0;
-  for (const cat of CATS.slice(1)) {
+  if (libCat === "Favourites") {
+    const fl = LIBRARY.filter(p => favs.has(favKey(p, false))), fm = presets.filter(p => favs.has(favKey(p, true)));
+    if (!fl.length && !fm.length) box.innerHTML = `<div class="favempty">No favourites yet.<br>Press and hold any look to add it here.</div>`;
+    for (const [lab0, list, mine] of [["From the library", fl, false], ["Yours", fm, true]]) {
+      if (!list.length) continue;
+      const lab = document.createElement("div"); lab.className = "catlabel"; lab.textContent = lab0; box.appendChild(lab);
+      const grid = document.createElement("div"); grid.className = "tiles";
+      list.forEach(p => { const b = presetTile(p, mine ? 0 : undefined); b.style.setProperty("--k", Math.min(k++, 14)); holdToFav(b, p, mine); grid.appendChild(b); });
+      box.appendChild(grid); watchTiles(grid);
+    }
+  }
+  for (const cat of CATS.slice(2)) {
     if (libCat !== "All" && libCat !== cat) continue;
     const lab = document.createElement("div"); lab.className = "catlabel"; lab.textContent = cat; lab.style.setProperty("--k", k++); box.appendChild(lab);
     const grid = document.createElement("div"); grid.className = "tiles";
-    LIBRARY.filter(p => p.cat === cat).forEach(p => { const b = presetTile(p); b.style.setProperty("--k", Math.min(k++, 14)); b.onclick = () => applyPreset(p); grid.appendChild(b); });
+    LIBRARY.filter(p => p.cat === cat).forEach(p => { const b = presetTile(p); b.style.setProperty("--k", Math.min(k++, 14)); holdToFav(b, p, false); grid.appendChild(b); });
     box.appendChild(grid); watchTiles(grid);
   }
   if (anim) { box.classList.remove("enter"); void box.offsetWidth; box.classList.add("enter"); setTimeout(() => box.classList.remove("enter"), 900); }
   [...$("#presetTabs").children].forEach(b => b.classList.toggle("on", b.dataset.p === presetTab));
   $("#libBox").hidden = presetTab !== "lib"; $("#mineBox").hidden = presetTab !== "mine";
-  $("#presetHint").textContent = presetTab === "lib" ? LIBRARY.length + " looks in " + (CATS.length - 1) + " collections" : "tap to apply · hold to rename or delete";
+  $("#presetHint").textContent = presetTab === "lib" ? "tap to try · hold to favourite" : "tap to apply · hold for options";
+}
+// press and hold any tile to favourite it (a quick tap still applies the look)
+function holdToFav(b, p, mine, onTap) {
+  let tm = 0, held = false, x0 = 0, y0 = 0;
+  b.addEventListener("pointerdown", e => { held = false; x0 = e.clientX; y0 = e.clientY; b.classList.add("holding");
+    tm = setTimeout(() => { held = true; b.classList.remove("holding"); toggleFav(p, mine, b); }, 520); });
+  b.addEventListener("pointermove", e => { if (Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { clearTimeout(tm); b.classList.remove("holding"); } });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(ev, () => { clearTimeout(tm); b.classList.remove("holding"); });
+  b.addEventListener("contextmenu", e => e.preventDefault());
+  b.onclick = () => { if (held) { held = false; return; } (onTap || (() => applyPreset(p)))(); };
+}
+function toggleFav(p, mine, el) {
+  const k = favKey(p, mine), on = !favs.has(k);
+  on ? favs.add(k) : favs.delete(k); store.set("favs", [...favs]);
+  document.querySelectorAll("#sheet .tile[data-name]").forEach(t => { if (t.dataset.name === p.name && !!t.closest("#mineBox") === mine) t.classList.toggle("fav", on); });
+  showToast(on ? "♥ Added to favourites" : "Removed from favourites");
+  if (!on && libCat === "Favourites" && !mine) renderFeatured(true);
 }
 function catOpen(on) { $("#catGrid").classList.toggle("open", on); $("#catPick").setAttribute("aria-expanded", on ? "true" : "false"); }
 $("#catPick").addEventListener("click", () => catOpen($("#catPick").getAttribute("aria-expanded") !== "true"));
@@ -2480,7 +2520,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v47 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v48 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
