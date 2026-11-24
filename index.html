@@ -57,9 +57,13 @@
     transition:transform .55s cubic-bezier(.16,1,.3,1),opacity .4s ease,background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
   #sheet.open{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
   /* side panel: settings on the right, the lamp stays big on the left */
-  #sheet{left:auto;right:10px;top:calc(env(safe-area-inset-top) + 10px);bottom:auto;width:var(--pw,226px);
-    max-height:calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 104px);padding:2px 12px 14px;border-radius:26px;transform:translateX(34px) scale(.97);transform-origin:100% 50%}
-  #sheet.open{transform:none}
+  /* the panel grows out of the tab you tapped, like a drop of liquid glass, and stays low within thumb reach */
+  #sheet{left:var(--sl,10px);right:auto;top:auto;bottom:var(--sb,100px);width:var(--pw,226px);
+    max-height:var(--sh,60vh);padding:2px 12px 14px;border-radius:64px;
+    transform:translateY(22px) scale(.22,.08);transform-origin:var(--ox,50%) 100%;
+    transition:transform .62s cubic-bezier(.2,.9,.22,1),opacity .32s ease,border-radius .55s cubic-bezier(.2,.8,.2,1),
+      left .5s cubic-bezier(.2,.8,.2,1),max-height .5s cubic-bezier(.2,.8,.2,1),background-color .35s,backdrop-filter .35s,-webkit-backdrop-filter .35s}
+  #sheet.open{transform:none;border-radius:28px}
   #sheet .grab{display:none}
   #sheet .chead{flex-direction:column;align-items:flex-start;gap:2px;margin:12px 0 10px}
   #sheet .chead span + span{font-size:11px}
@@ -126,8 +130,10 @@
   #sheet.picking{opacity:0;pointer-events:none}
   /* themed menu: colours follow the lava */
   :root{--hot:#ff6a3d;--cool:#ffb347;--liq:#2a0d12}
-  #sheet{background:radial-gradient(130% 70% at 50% 115%,color-mix(in srgb,var(--hot) 20%,transparent),transparent 70%),rgba(14,11,13,.74) !important;
-    border:1px solid color-mix(in srgb,var(--hot) 22%,rgba(255,255,255,.08)) !important;box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+  #sheet{background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,0) 38%),radial-gradient(130% 70% at 50% 115%,color-mix(in srgb,var(--hot) 22%,transparent),transparent 70%),rgba(16,12,16,.58) !important;
+    backdrop-filter:blur(26px) saturate(1.8) !important;-webkit-backdrop-filter:blur(26px) saturate(1.8) !important;
+    border:1px solid rgba(255,255,255,.16) !important;
+    box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.32),inset 0 -1px 0 rgba(255,255,255,.08),inset 0 0 24px color-mix(in srgb,var(--hot) 10%,transparent)}
   #sheet.peek{background:transparent !important;border-color:transparent !important;box-shadow:none}
   .ctl.on{background:color-mix(in srgb,var(--hot) 30%,rgba(255,255,255,.1));box-shadow:0 0 18px color-mix(in srgb,var(--hot) 40%,transparent)}
   .seg button.on{background:linear-gradient(135deg,color-mix(in srgb,var(--cool) 45%,rgba(255,255,255,.1)),color-mix(in srgb,var(--hot) 45%,rgba(255,255,255,.1)));box-shadow:0 2px 12px color-mix(in srgb,var(--hot) 30%,transparent)}
@@ -1722,9 +1728,21 @@ function openSheet(name) {
   if (name === "presets") renderPresets(); else if (name === "lamp") renderFrames();
   controls.querySelectorAll(".ctl").forEach(c => c.classList.toggle("on", c.dataset.card === name));
   sheet.style.transition = ""; sheet.style.transform = "";
+  placeSheet(name);
   sheet.scrollTop = 0; sheet.classList.add("open"); startFx();
   requestAnimationFrame(frameView);
   controls.classList.remove("hidden"); clearTimeout(idleTimer);
+}
+function placeSheet(name) {
+  const pw = Math.round(clamp(W * 0.58, 210, 330)), tall = name === "lamp" || name === "presets";
+  const dockTop = controls.offsetTop, safeT = Math.max(0, parseFloat(getComputedStyle(toast).top) - 26) + 6;
+  const btn = controls.querySelector(`.ctl[data-card="${name}"]`), br = btn ? btn.getBoundingClientRect() : null;
+  const bx = br ? br.left + br.width / 2 : W / 2;
+  const left = tall ? W - pw - 10 : clamp(bx - pw / 2, 10, W - pw - 10);
+  const rs = sheet.style;
+  rs.setProperty("--sl", left + "px"); rs.setProperty("--sb", (H - dockTop + 10) + "px");
+  rs.setProperty("--sh", Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58)) + "px");
+  rs.setProperty("--ox", Math.round(bx - left) + "px");
 }
 // keep the whole lamp (or the whole tank in full screen) in view above the open menu
 function frameView() {
@@ -2141,7 +2159,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v32 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v33 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
