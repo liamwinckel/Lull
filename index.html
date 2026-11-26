@@ -219,6 +219,24 @@
   .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
+  #prompt{position:absolute;left:12%;right:12%;top:30%;text-align:center;z-index:5;pointer-events:none;color:#fff;
+    font-size:20px;font-weight:300;line-height:1.4;letter-spacing:.02em;text-shadow:0 2px 18px rgba(0,0,0,.55);
+    opacity:0;filter:blur(8px);transform:translateY(8px);transition:opacity 2.6s ease,filter 2.6s ease,transform 3s ease}
+  #prompt.show{opacity:.82;filter:blur(0);transform:none}
+  #sessPill{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 10px);z-index:7;display:flex;align-items:center;gap:8px;
+    padding:6px 6px 6px 12px;border-radius:20px;color:#fff;font-size:13px;background:rgba(16,12,16,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.12);transform:translate(-50%,-70px);opacity:0;transition:transform .6s cubic-bezier(.2,.8,.2,1),opacity .4s}
+  #sessPill.on{transform:translate(-50%,0);opacity:1}
+  #sessPill i{width:8px;height:8px;border-radius:50%;background:var(--hot);box-shadow:0 0 10px var(--hot);animation:sessDot 4s ease-in-out infinite}
+  @keyframes sessDot{50%{transform:scale(1.6);opacity:.6}}
+  #sessPill em{font-style:normal;opacity:.6;font-variant-numeric:tabular-nums}
+  #sessPill button{border:none;background:rgba(255,255,255,.12);color:#fff;width:26px;height:26px;border-radius:50%;font-size:12px;padding:0}
+  .sessions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .sess{position:relative;height:88px;border:none;border-radius:18px;overflow:hidden;color:#fff;text-align:left;padding:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+  .sess b{position:absolute;left:11px;bottom:24px;font-size:14px;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .sess small{position:absolute;left:11px;bottom:9px;font-size:10.5px;opacity:.75;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .sess i{position:absolute;border-radius:50%;filter:blur(1px)}
+  .sess.run{box-shadow:inset 0 0 0 2px #fff}
   #dimmer{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:4;transition:opacity .6s ease}
   #controls,#sheet,#toast{z-index:6}
   #vpick.show{pointer-events:auto}
@@ -298,6 +316,8 @@
 <canvas id="c"></canvas>
 <svg id="lamp" xmlns="http://www.w3.org/2000/svg"></svg>
 <div id="cue"></div>
+<div id="prompt" aria-live="polite"></div>
+<div id="sessPill" aria-live="polite"><i></i><span id="sessName"></span><em id="sessLeft"></em><button id="sessStop" aria-label="End session">✕</button></div>
 <div id="toast"></div>
 
 <div id="controls" class="hidden" role="toolbar" aria-label="Lull controls">
@@ -380,7 +400,23 @@
   </section>
 
   <section class="card" data-card="calm">
-    <div class="chead"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
+    <div class="chead"><span>Sessions</span><span>the lamp guides you · tap to begin</span></div>
+    <div class="sessions" id="sessList"></div>
+    <div class="chead" style="margin-top:14px"><span>Soundscape</span></div>
+    <div class="seg" id="scapeSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+    <div class="row"><span>Soundscape</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
+    <div class="chead" style="margin-top:14px"><span>Music</span><span>slow notes that make the lava glow</span></div>
+    <div class="seg" id="musicSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+    <div class="row"><span>Music</span><input type="range" id="musicVol" min="0" max="1" step="0.01"></div>
+    <div class="chead" style="margin-top:14px"><span>Tones</span><span>a soft, steady hum</span></div>
+    <div class="seg" id="hzSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+    <div class="row"><span>Tone</span><input type="range" id="hzVol" min="0" max="1" step="0.01"></div>
+    <div class="chead" style="margin-top:14px"><span>Gentle prompts</span><span>a quiet thought now and then</span></div>
+    <div class="row"><span>Prompts</span><button class="switch" id="swPrompts" aria-label="Gentle prompts"></button></div>
+    <div class="seg" id="promptSeg" style="grid-template-columns:repeat(3,1fr)">
+      <button data-s="360">Rarely</button><button data-s="180">Sometimes</button><button data-s="75">Often</button>
+    </div>
+    <div class="chead" style="margin-top:14px"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
     <div class="seg" id="sleepSeg" style="grid-template-columns:repeat(4,1fr)">
       <button data-m="0">Off</button><button data-m="15">15 m</button><button data-m="30">30 m</button><button data-m="60">1 h</button>
     </div>
@@ -388,10 +424,10 @@
     <div class="chead" style="margin-top:14px"><span>Breathing</span></div>
     <div class="seg" id="breathSeg"></div>
     <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
+    <div class="row"><span>Breath sound</span><input type="range" id="breathVol" min="0" max="1" step="0.01"></div>
     <div class="chead" style="margin-top:14px"><span>Sound</span></div>
     <div class="row"><span>Ambient</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
     <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
-    <div class="row"><span>Ambience</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Pops</span><input type="range" id="popVol" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Stir tones</span><input type="range" id="toneVol" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Lava blubs</span><input type="range" id="lavaVol" min="0" max="1" step="0.01"></div>
@@ -493,7 +529,8 @@ const BREATHS = [
   { id: "off",   name: "Off",   sub: "free",    p: null },
   { id: "calm",  name: "Calm",  sub: "4 · 4",   p: [4, 0, 4, 0] },
   { id: "box",   name: "Box",   sub: "4·4·4·4", p: [4, 4, 4, 4] },
-  { id: "relax", name: "Relax", sub: "4 · 7 · 8", p: [4, 7, 8, 0] }
+  { id: "relax", name: "Relax", sub: "4 · 7 · 8", p: [4, 7, 8, 0] },
+  { id: "even",  name: "Even",  sub: "5½ · 5½", p: [5.5, 0, 5.5, 0] }
 ];
 const PHASE_LABEL = ["Breathe in", "Hold", "Breathe out", "Hold"];
 let breathId = store.get("breath", "off");
@@ -501,6 +538,11 @@ if (!store.get("breathReset1", false)) { breathId = "off"; store.set("breath", "
 let cueOn = store.get("cue", true);
 let soundOn = store.get("sound", true);
 let volume = store.get("vol", 0.7);
+// calm studio settings
+let scape = store.get("scape", "drone"), music = store.get("music", "off"), hz = store.get("hz", 0);
+let musicVol = store.get("musicVol", 0.55), hzVol = store.get("hzVol", 0.35), breathVol = store.get("breathVol", 0.6);
+let promptsOn = store.get("prompts", false), promptEvery = store.get("promptEvery", 180);
+let notePulse = 0, breathVel = 0;
 
 /* ---------- WebGL ---------- */
 const canvas = $("#c");
@@ -551,7 +593,7 @@ void main(){
   }
   S1+=G1; Sg+=Gg; if(G1.x>M1.x){ M1=G1; Mg=Gg; }
   { vec4 F1=mix(M1,S1,uMergeK)+D1; f=F1.x; h=F1.y; rw=F1.z; grad=mix(Mg,Sg,uMergeK)+Dg; }
-  float lf=0.3+1.4*uLight, S=uShadow, T=uTrans;
+  float lf=0.3+1.4*uLight+0.22*uBreath, S=uShadow, T=uTrans;
   float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
   float y=p.y/uRes.y, inside=1., hw=1., dxn=0.;
   if(uLamp>0.5){
@@ -1020,7 +1062,7 @@ function breathTarget(dt) {
   breathT = (breathT + dt) % total;
   let t = breathT, ph = 0;
   while (t >= p[ph]) { t -= p[ph]; ph++; }
-  if (ph !== breathPhase) { breathPhase = ph; showCue(PHASE_LABEL[ph]); }
+  if (ph !== breathPhase) { breathPhase = ph; showCue(PHASE_LABEL[ph]); audio.phase(ph); }
   const k = t / p[ph], ease = 0.5 - 0.5 * Math.cos(Math.PI * k);
   return ph === 0 ? ease : ph === 1 ? 1 : ph === 2 ? 1 - ease : 0;
 }
@@ -1138,6 +1180,7 @@ function askMotion() {
 function step(dt) {
   // tilt: a gentle sideways pull toward the lower side (with a small dead zone so a slightly crooked hand does nothing)
   const dz = 0.05 / mSens();
+  if (breathVel) { const fb2 = -breathVel * 240 * g * dt; for (const b of blobs) if (!b.dying) b.vy += fb2 * (b.p ? 0.5 : 1); }
   tiltS += ((Math.abs(tiltX) < dz || !motionOn ? 0 : tiltX - Math.sign(tiltX) * dz) - tiltS) * Math.min(1, dt * 4);
   // tipping it forward/back (phone flatter) nudges things up or down a little too
   const fy = motionOn ? clamp(1 - Math.max(tiltY, 0), 0, 1) * Math.sign(tiltY || 1) : 0;
@@ -1608,7 +1651,7 @@ function render() {
   gl.uniform1f(U.uMergeK, clamp((absorb - 0.02) / 0.3, 0, 1)); gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
   if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
-  gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, breathLvl);
+  gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, Math.min(1.4, breathLvl + notePulse * 0.6));
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
   { const P = curFrame().prof; gl.uniform4f(U.uProf, P[0], P[1], P[2], P[3]); gl.uniform1f(U.uProfT, P[4]); }
   // the bulb: under the bottom of the screen, or at the base of the lamp glass
@@ -1654,18 +1697,24 @@ function frame(now) {
   else if (sleepFade > 0) { sleepFade = Math.max(0, sleepFade - rdt0 / 2.5); if (!sleepFade) sleepWake = false; }
   { const dv = Math.max(dimAmt * 0.8, sleepFade * 0.97); if (Math.abs(dv - dimShown) > 0.004) { dimShown = dv; $("#dimmer").style.opacity = dv.toFixed(3); } }
   if (sleepFade > 0 && (audioTick2 += rdt0) > 0.4) { audioTick2 = 0; audio.level(); }
-  const bt = breathTarget(dt);
-  breathLvl += (bt - breathLvl) * Math.min(1, dt * 3);
-  const k = Math.min(1, dt * 1.6);
+  const bt = breathTarget(rdt0);   // breathing keeps real time, whatever the flow speed
+  const bl0 = breathLvl; breathLvl += (bt - breathLvl) * Math.min(1, rdt0 * 3);
+  breathVel = rdt0 > 0 ? (breathLvl - bl0) / rdt0 : 0;
+  notePulse *= Math.exp(-rdt0 * 1.4);
+  calmTick(rdt0);
+  const k = Math.min(1, rdt0 * colourRate);
   for (const key in tgt) for (let i = 0; i < 3; i++) cur[key][i] += (tgt[key][i] - cur[key][i]) * k;
   rdt = dt; step(dt); render();
-  if ((audioTick += dt) > 0.15) { audioTick = 0; audio.breath(breathLvl); }
+  if ((audioTick += rdt0) > 0.15) { audio.tick(audioTick); audioTick = 0; audio.breath(breathLvl); }
   requestAnimationFrame(frame);
 }
 
 /* ---------- audio ---------- */
 const audio = (() => {
   let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
+  let scapeG = {}, musicBus, hzBus, breathBus, brG, brF, hzOsc = [], nextNote = 2, lastLvl = 0, wnb = null, lastPh = -1;
+  // D major pentatonic, low and gentle
+  const PENTA = [73.42, 82.41, 92.5, 110, 123.47, 146.83, 164.81, 185, 220, 246.94, 293.66, 329.63, 369.99, 440];
   const SCALE = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
   function init() {
     if (AC) return;
@@ -1698,7 +1747,72 @@ const audio = (() => {
     const ng = AC.createGain(); ng.gain.value = 0.35; ns.connect(nf); nf.connect(ng); ng.connect(amb); ns.start();
     const fl = AC.createOscillator(); fl.frequency.value = 0.035; const flg = AC.createGain(); flg.gain.value = 110;
     fl.connect(flg); flg.connect(ambF.frequency); fl.start();
+    // ---- soundscapes (crossfade between layers)
+    amb.disconnect(); scapeG.drone = AC.createGain(); amb.connect(scapeG.drone);
+    for (const k of ["underwater", "rain", "ocean"]) scapeG[k] = AC.createGain();
+    for (const k in scapeG) { scapeG[k].gain.value = 0; scapeG[k].connect(ambBus); }
+    const wlen = AC.sampleRate * 4; wnb = AC.createBuffer(1, wlen, AC.sampleRate); const wd = wnb.getChannelData(0);
+    for (let i = 0; i < wlen; i++) wd[i] = Math.random() * 2 - 1;
+    const src = (buf, rate) => { const n = AC.createBufferSource(); n.buffer = buf; n.loop = true; n.playbackRate.value = rate || 1; n.start(); return n; };
+    const filt = (type, f, q) => { const b = AC.createBiquadFilter(); b.type = type; b.frequency.value = f; if (q) b.Q.value = q; return b; };
+    const lfo = (rate, depth, target) => { const o = AC.createOscillator(); o.frequency.value = rate; const g2 = AC.createGain(); g2.gain.value = depth; o.connect(g2); g2.connect(target); o.start(); };
+    { // underwater: deep, muffled pressure with slow currents
+      const f1 = filt("lowpass", 230, 1.2), g1 = AC.createGain(); g1.gain.value = 1.3;
+      src(nb, 0.6).connect(f1); f1.connect(g1); g1.connect(scapeG.underwater); lfo(0.05, 70, f1.frequency);
+      const hum = AC.createOscillator(); hum.frequency.value = 41; const hg = AC.createGain(); hg.gain.value = 0.18; hum.connect(hg); hg.connect(scapeG.underwater); hum.start(); lfo(0.08, 0.08, hg.gain);
+    }
+    { // rain: soft hiss plus a distant rumble
+      const h = filt("highpass", 1400), l = filt("lowpass", 7000), g1 = AC.createGain(); g1.gain.value = 0.16;
+      src(wnb).connect(h); h.connect(l); l.connect(g1); g1.connect(scapeG.rain); lfo(0.11, 0.03, g1.gain);
+      const r = filt("lowpass", 500), g2 = AC.createGain(); g2.gain.value = 0.5; src(nb, 0.8).connect(r); r.connect(g2); g2.connect(scapeG.rain);
+    }
+    { // ocean: slow swells of surf
+      const l = filt("lowpass", 650), g1 = AC.createGain(); g1.gain.value = 0.55; src(nb, 1.1).connect(l); l.connect(g1); g1.connect(scapeG.ocean);
+      lfo(0.085, 0.45, g1.gain); lfo(0.085, 380, l.frequency);
+      const h = filt("highpass", 2200), g2 = AC.createGain(); g2.gain.value = 0.04; src(wnb).connect(h); h.connect(g2); g2.connect(scapeG.ocean); lfo(0.085, 0.035, g2.gain);
+    }
+    // ---- breath sound: airy noise that swells with each in- and out-breath
+    breathBus = AC.createGain(); breathBus.connect(master);
+    brF = filt("bandpass", 500, 0.7); brG = AC.createGain(); brG.gain.value = 0;
+    src(wnb).connect(brF); brF.connect(brG); brG.connect(breathBus);
+    // ---- music and tones
+    musicBus = AC.createGain(); musicBus.connect(dry); musicBus.connect(fx);
+    hzBus = AC.createGain(); hzBus.connect(master);
+    setHz(hz);
   }
+  function setHz(f) {
+    if (!AC) return;
+    for (const o of hzOsc) { try { o.g.gain.setTargetAtTime(0, AC.currentTime, 0.8); o.o.stop(AC.currentTime + 4); } catch (e) {} }
+    hzOsc = [];
+    if (!f) return;
+    for (const [m, v] of [[1, 0.06], [2, 0.012]]) for (const det of [-1, 1]) {   // two voices a hair apart: a slow, soft beating
+      const o = AC.createOscillator(); o.type = "sine"; o.frequency.value = f * m + det * 0.9 * m;
+      const g2 = AC.createGain(); g2.gain.value = 0; o.connect(g2); g2.connect(hzBus); o.start();
+      g2.gain.setTargetAtTime(v, AC.currentTime, 1.5); hzOsc.push({ o, g: g2 });
+    }
+  }
+  // one instrument note; also makes the lava glow briefly
+  function play(kind, f, vel) {
+    const tt = AC.currentTime, mk = (type, fr) => { const o = AC.createOscillator(); o.type = type; o.frequency.value = fr; return o; };
+    const v = vel || 1;
+    if (kind === "bowl") {
+      [[1, 0.1], [2.76, 0.04], [5.4, 0.018], [8.93, 0.007]].forEach(([m, a]) => { env(mk("sine", f * 2 * m), a * v, 0.02, 9 - m * 0.6, musicBus); env(mk("sine", f * 2 * m * 1.003), a * v * 0.6, 0.02, 8 - m * 0.6, musicBus); });
+    } else if (kind === "piano") {
+      const o = mk("triangle", f * 2), lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(2400, tt); lp.frequency.exponentialRampToValueAtTime(500, tt + 2.5);
+      o.connect(lp); env({ connect: n => lp.connect(n), start: x => o.start(x), stop: x => o.stop(x) }, 0.11 * v, 0.006, 3.4, musicBus);
+      env(mk("sine", f * 4), 0.025 * v, 0.004, 1.4, musicBus);
+    } else if (kind === "harp") {
+      env(mk("sine", f * 2), 0.09 * v, 0.003, 2.2, musicBus); env(mk("sine", f * 6), 0.015 * v, 0.002, 0.6, musicBus); env(mk("triangle", f * 4), 0.02 * v, 0.003, 0.9, musicBus);
+    } else if (kind === "pad") {
+      [1, 1.5, 2].forEach((m, i) => {
+        const o = mk("sawtooth", f * m), lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 520; o.detune.value = (i - 1) * 6;
+        const g2 = AC.createGain(); g2.gain.setValueAtTime(0, tt); g2.gain.linearRampToValueAtTime(0.03 * v, tt + 4); g2.gain.linearRampToValueAtTime(0, tt + 11);
+        o.connect(lp); lp.connect(g2); g2.connect(musicBus); o.start(tt); o.stop(tt + 11.2);
+      });
+    }
+    notePulse = Math.min(1, notePulse + (kind === "pad" ? 0.5 : 0.8) * v);
+  }
+  const pick = (lo, hi) => PENTA[lo + Math.floor(Math.random() * (hi - lo))];
   function level() {
     if (!AC) return;
     master.gain.setTargetAtTime(soundOn ? volume * 0.9 * (1 - sleepFade) : 0, AC.currentTime, 0.5);
@@ -1706,6 +1820,12 @@ const audio = (() => {
     popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
     toneBus.gain.setTargetAtTime(toneVol * 1.4, AC.currentTime, 0.1);
     lavaBus.gain.setTargetAtTime(lavaVol * 1.6, AC.currentTime, 0.1);
+    if (scapeG.drone) {
+      for (const k in scapeG) scapeG[k].gain.setTargetAtTime(k === scape ? 1 : 0, AC.currentTime, 1.4);
+      musicBus.gain.setTargetAtTime(musicVol * 1.5, AC.currentTime, 0.2);
+      hzBus.gain.setTargetAtTime(hzVol * 1.2, AC.currentTime, 0.4);
+      breathBus.gain.setTargetAtTime(breathVol * 1.3, AC.currentTime, 0.2);
+    }
   }
   function resume() { if (AC && AC.state !== "running") AC.resume().catch(() => {}); }
   function env(o, peak, a, rel, bus) {
@@ -1782,6 +1902,25 @@ const audio = (() => {
       if (!AC || !ambF) return;
       ambF.frequency.setTargetAtTime(340 + lvl * 380, AC.currentTime, 0.4);
       amb.gain.setTargetAtTime(0.5 + lvl * 0.25, AC.currentTime, 0.4);
+      if (brG) {
+        // the breath sound follows the lava: it swells while the breath is moving, rests on the holds
+        const rate = Math.abs(lvl - lastLvl) / 0.15; lastLvl = lvl;
+        const on = breathPhase === 0 || breathPhase === 2;
+        brG.gain.setTargetAtTime(on && soundOn ? Math.min(0.55, rate * 1.6) : 0, AC.currentTime, 0.25);
+        brF.frequency.setTargetAtTime(breathPhase === 0 ? 420 + lvl * 1100 : 260 + lvl * 700, AC.currentTime, 0.3);
+      }
+    },
+    setHz,
+    phase(ph) { if (AC && soundOn && ph === 0 && music === "bowl") { play("bowl", pick(0, 6), 0.8); nextNote = 9; } },
+    chime() { if (AC && soundOn) play("bowl", PENTA[5], 0.9); },
+    // a slow generative player: notes come at unhurried, uneven intervals
+    tick(dt) {
+      if (!AC || !musicBus || !soundOn || music === "off" || musicVol <= 0.001) return;
+      if ((nextNote -= dt) > 0) return;
+      if (music === "bowl") { if (breathPhase < 0) play("bowl", pick(0, 7)); nextNote = 8 + Math.random() * 7; }
+      else if (music === "piano") { const i = Math.floor(Math.random() * 8) + 3; play("piano", PENTA[i]); if (Math.random() < 0.35) setTimeout(() => AC && play("piano", PENTA[Math.min(i + 2, 13)], 0.7), 380); nextNote = 2.4 + Math.random() * 3.6; }
+      else if (music === "harp") { const i = Math.floor(Math.random() * 6) + 4, n = 2 + Math.floor(Math.random() * 3); for (let k = 0; k < n; k++) setTimeout(() => AC && play("harp", PENTA[Math.min(i + k, 13)], 0.8 - k * 0.12), k * 230); nextNote = 3.5 + Math.random() * 4; }
+      else if (music === "pad") { play("pad", pick(0, 5)); nextNote = 8 + Math.random() * 4; }
     }
   };
 })();
@@ -1904,7 +2043,7 @@ function syncEx() {
   $("#sleepHint").textContent = sleepMin ? "fades out at " + new Date(sleepAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "fade the lamp and sound out";
 }
 function syncUI() {
-  syncEx();
+  syncEx(); if (typeof syncCalm === "function") syncCalm();
   renderFrames(); syncLampOpts();
   queueMicrotask(() => BARS.forEach(f => f()));
   { const vb = $("#viewBtn"), lampNow = viewSel === "lamp";
@@ -2147,6 +2286,154 @@ BREATHS.forEach(B => {
   };
   $("#breathSeg").appendChild(b);
 });
+/* ---------- calm studio: prompts and guided sessions ---------- */
+const PROMPTS = ["Let your shoulders drop.", "Nothing needs fixing right now.", "Notice where you're holding tension.", "Breathe a little slower than you need to.",
+  "Soften your jaw.", "Let the next breath come on its own.", "You don't have to hurry.", "Feel the weight of your body.",
+  "Watch one blob rise all the way up.", "Thoughts can float by, like the wax.", "Unclench your hands.", "This moment is enough.",
+  "Let your eyes go soft.", "Lengthen the out-breath.", "Notice three sounds around you.", "Be kind to yourself today.",
+  "Rest your attention on the glow.", "There's time.", "Let the day settle to the bottom.", "Breathe into your belly.",
+  "Follow a bubble to the top.", "Release what you're carrying.", "Gently come back to the breath.", "Let your face relax.",
+  "You're allowed to slow down.", "Just this breath.", "Feel your feet.", "Let it be easy."];
+let promptT = 40, promptHideT = 0, lastPrompt = -1;
+const promptEl = $("#prompt");
+function showPrompt(txt) {
+  clearTimeout(promptHideT);
+  promptEl.classList.remove("show");
+  setTimeout(() => { promptEl.textContent = txt; promptEl.classList.add("show"); promptHideT = setTimeout(() => promptEl.classList.remove("show"), 7500); }, promptEl.textContent ? 1400 : 50);
+}
+// guided sessions: each step glides the lamp to a new look, changes the breath and sound, and offers a line
+const SESSIONS = [
+  { id: "unwind", name: "Unwind", min: 8, sub: "8 min · let the day go", look: "Peach sorbet", steps: [
+    { at: 0, look: "Peach sorbet", breath: "calm", scape: "ocean", music: "bowl", say: "Settle in. Let the lamp breathe for you." },
+    { at: 45, say: "Breathe in as the wax rises… and out as it falls." },
+    { at: 150, look: "Lilac dream", breath: "even", say: "Slower now. Let each breath stretch out." },
+    { at: 260, say: "Notice anything you're holding, and set it down." },
+    { at: 330, look: "Lullaby", breath: "relax", music: "pad", say: "Long, easy exhales." },
+    { at: 420, say: "Stay as long as you like." }] },
+  { id: "sleep", name: "Drift to sleep", min: 15, sub: "15 min · fades to dark", look: "Embers", end: "sleep", steps: [
+    { at: 0, look: "Embers", breath: "relax", scape: "rain", music: "pad", hz: 174, say: "Get comfortable. Nothing left to do today." },
+    { at: 60, say: "In for four… hold… and a long breath out." },
+    { at: 240, look: "Candlelight", say: "Let your body grow heavy." },
+    { at: 480, look: "Midnight", breath: "even", music: "off", say: "Let the breath find its own pace." },
+    { at: 720, say: "Drift." }] },
+  { id: "focus", name: "Focus reset", min: 5, sub: "5 min · clear and steady", look: "Deep ocean", steps: [
+    { at: 0, look: "Deep ocean", breath: "box", scape: "underwater", music: "off", hz: 432, say: "Sit tall. Four counts in, four to hold." },
+    { at: 90, say: "Let each thought pass like a bubble." },
+    { at: 180, look: "Arctic", breath: "even", say: "Clear and steady." },
+    { at: 270, say: "Carry this calm back with you." }] },
+  { id: "sos", name: "Quick calm", min: 2, sub: "2 min · when it's a lot", look: "Bioluminescence", steps: [
+    { at: 0, look: "Bioluminescence", breath: "relax", scape: "underwater", music: "bowl", say: "You're safe. Just follow the lamp." },
+    { at: 40, say: "Make the out-breath longer than the in-breath." },
+    { at: 90, say: "One more slow breath." }] },
+  { id: "morning", name: "Morning", min: 6, sub: "6 min · wake up gently", look: "Sunrise", steps: [
+    { at: 0, look: "Sunrise", breath: "calm", scape: "ocean", music: "harp", say: "Good morning. Breathe in the light." },
+    { at: 120, look: "Honey", say: "Notice one thing you're looking forward to." },
+    { at: 240, look: "Lime soda", breath: "box", music: "piano", say: "Bright and awake." }] },
+  { id: "drift", name: "Underwater", min: 10, sub: "10 min · deep and quiet", look: "Jellyfish", steps: [
+    { at: 0, look: "Jellyfish", breath: "even", scape: "underwater", music: "bowl", say: "Sink below the surface." },
+    { at: 200, look: "Mermaid", say: "Everything slows down down here." },
+    { at: 420, look: "Deep ocean", breath: "relax", say: "Let the quiet hold you." }] },
+];
+// looks glide over ~20 s during a session (colours, light and lava feel; the lamp's shape is left alone)
+const TW = ["light", "shadow", "trans", "absorb", "bubbleAmt", ...Object.keys(EX_DEF)];
+let tween = null, sess = null;
+const getV = k => k in ex ? ex[k] : { light, shadow, trans, absorb, bubbleAmt }[k];
+function setV(k, v) { if (k in ex) ex[k] = v; else if (k === "light") light = v; else if (k === "shadow") shadow = v; else if (k === "trans") trans = v; else if (k === "absorb") absorb = v; else if (k === "bubbleAmt") bubbleAmt = v; }
+function glideTo(look, dur) {
+  const p = LIBRARY.find(x => x.name === look); if (!p) return; const v = p.s;
+  const from = {}, to = {}; for (const k of TW) { from[k] = getV(k); to[k] = k === "bubbleAmt" ? (v.bubbles ?? bubbleAmt) : k in EX_DEF ? (v[k] ?? EX_DEF[k]) : (v[k] ?? getV(k)); }
+  tween = { from, to, t: 0, dur: dur || 20 };
+  colourRate = 0.12; applyTheme(v.theme);
+  if (v.style && v.style !== style) style = v.style;
+  if (v.lightMode) lightMode = v.lightMode;
+}
+let colourRate = 1.6, bubT = 0;
+function calmTick(dt) {
+  if (tween) {
+    tween.t += dt; const k = Math.min(1, tween.t / tween.dur), e = k * k * (3 - 2 * k);
+    for (const key of TW) setV(key, tween.from[key] + (tween.to[key] - tween.from[key]) * e);
+    if ((bubT += dt) > 1.5) { bubT = 0; applyBubblesNow(); }
+    if (k >= 1) { tween = null; colourRate = 1.6; }
+  }
+  if (sess) {
+    sess.t += dt;
+    while (sess.i < sess.def.steps.length && sess.t >= sess.def.steps[sess.i].at) runStep(sess.def.steps[sess.i++]);
+    const left = Math.max(0, sess.def.min * 60 - sess.t);
+    const txt = Math.floor(left / 60) + ":" + String(Math.floor(left % 60)).padStart(2, "0");
+    if (txt !== sess.shown) { sess.shown = txt; $("#sessLeft").textContent = txt; }
+    if (left <= 0) endSession(true);
+  } else if (promptsOn && started && !sheetOpen && (promptT -= dt) <= 0) {
+    let i; do i = Math.floor(Math.random() * PROMPTS.length); while (i === lastPrompt && PROMPTS.length > 1);
+    lastPrompt = i; showPrompt(PROMPTS[i]); promptT = promptEvery * (0.7 + Math.random() * 0.6);
+  }
+}
+function runStep(st) {
+  if (st.look) glideTo(st.look, st.at === 0 ? 8 : 22);
+  if (st.breath) { breathId = st.breath; breathT = 0; breathPhase = -1; }
+  if (st.scape) scape = st.scape;
+  if (st.music) music = st.music;
+  if (st.hz !== undefined) { hz = st.hz; audio.setHz(hz); }
+  if (st.say) showPrompt(st.say);
+  if (st.at > 0) audio.chime();
+  audio.level(); syncCalm();
+}
+function startSession(def) {
+  if (sess) endSession(false, true);
+  audio.init(); if (!soundOn) setSound(true); else audio.resume();
+  sess = { def, t: 0, i: 0, shown: "",
+    back: { theme: themeId, breathId, scape, music, hz, style, lightMode, vals: Object.fromEntries(TW.map(k => [k, getV(k)])) } };
+  $("#sessName").textContent = def.name; $("#sessPill").classList.add("on");
+  if (sleepAt) { sleepAt = 0; sleepMin = 0; }
+  closeSheet(); syncCalm(); audio.chime();
+}
+function endSession(done, quiet) {
+  if (!sess) return; const s0 = sess; sess = null;
+  $("#sessPill").classList.remove("on");
+  if (done && s0.def.end === "sleep") { sleepMin = 1; sleepAt = Date.now(); sleepWake = false; syncEx(); syncCalm(); return; }   // fade out like the wind-down timer
+  if (quiet) return;
+  const b = s0.back;   // ease back to how things were
+  tween = { from: Object.fromEntries(TW.map(k => [k, getV(k)])), to: b.vals, t: 0, dur: 6 };
+  colourRate = 0.5; applyTheme(b.theme); style = b.style; lightMode = b.lightMode;
+  breathId = b.breathId; breathT = 0; breathPhase = -1; scape = b.scape; music = b.music; hz = b.hz; audio.setHz(hz);
+  if (breathId === "off") cueEl.style.opacity = 0;
+  if (done) showPrompt("Welcome back."); else { clearTimeout(promptHideT); promptEl.classList.remove("show"); }
+  audio.level(); syncCalm(); syncUI();
+}
+$("#sessStop").addEventListener("click", e => { e.stopPropagation(); endSession(false); });
+function renderSessions() {
+  const box = $("#sessList"); box.innerHTML = "";
+  SESSIONS.forEach(d => {
+    const p = LIBRARY.find(x => x.name === d.look) || LIBRARY[0], t = themeById(p.s.theme), b = document.createElement("button");
+    b.className = "sess" + (sess && sess.def.id === d.id ? " run" : "");
+    b.style.background = `radial-gradient(120% 90% at 80% 120%,${t.hot}44,transparent 60%),linear-gradient(to top,${t.liqBot},${t.liqTop})`;
+    b.innerHTML = `<i style="right:14px;top:12px;width:30px;height:30px;background:radial-gradient(circle at 40% 35%,${t.hot},${t.cool})"></i><i style="right:42px;top:34px;width:14px;height:14px;background:radial-gradient(circle,${t.hot},${t.cool})"></i><b>${d.name}</b><small>${d.sub}</small>`;
+    b.onclick = () => startSession(d);
+    box.appendChild(b);
+  });
+}
+const SCAPES = [["off", "Off"], ["drone", "Drone"], ["underwater", "Under-water"], ["rain", "Rain"], ["ocean", "Ocean"]];
+const MUSICS = [["off", "Off"], ["bowl", "Bowl"], ["piano", "Piano"], ["harp", "Harp"], ["pad", "Pad"]];
+const HZS = [[0, "Off"], [174, "174"], [396, "396"], [432, "432"], [528, "528"]];
+function segFill(box, list, get, set) {
+  box.innerHTML = ""; list.forEach(([v, n]) => { const b = document.createElement("button"); b.textContent = n; b.dataset.v = v; b.onclick = () => { set(v); syncCalm(); }; box.appendChild(b); });
+}
+segFill($("#scapeSeg"), SCAPES, () => scape, v => { scape = v; store.set("scape", v); audio.init(); audio.level(); });
+segFill($("#musicSeg"), MUSICS, () => music, v => { music = v; store.set("music", v); audio.init(); audio.level(); });
+segFill($("#hzSeg"), HZS, () => hz, v => { hz = +v; store.set("hz", hz); audio.init(); audio.setHz(hz); audio.level(); });
+function syncCalm() {
+  const mark = (id, cur) => [...$(id).children].forEach(b => b.classList.toggle("on", b.dataset.v == cur));
+  mark("#scapeSeg", scape); mark("#musicSeg", music); mark("#hzSeg", hz);
+  [...$("#promptSeg").children].forEach(b => b.classList.toggle("on", +b.dataset.s === promptEvery));
+  $("#promptSeg").style.display = promptsOn ? "" : "none";
+  $("#swPrompts").classList.toggle("on", promptsOn);
+  $("#musicVol").value = musicVol; $("#hzVol").value = hzVol; $("#breathVol").value = breathVol;
+  [...$("#breathSeg").children].forEach(b => b.classList.toggle("on", b.dataset.id === breathId));
+  renderSessions();
+}
+for (const [id, set] of [["musicVol", v => musicVol = v], ["hzVol", v => hzVol = v], ["breathVol", v => breathVol = v]])
+  $("#" + id).addEventListener("input", e => { set(+e.target.value); store.set(id, +e.target.value); audio.level(); });
+$("#swPrompts").onclick = () => { promptsOn = !promptsOn; store.set("prompts", promptsOn); promptT = 20; if (!promptsOn) promptEl.classList.remove("show"); syncCalm(); };
+[...$("#promptSeg").children].forEach(b => b.onclick = () => { promptEvery = +b.dataset.s; store.set("promptEvery", promptEvery); promptT = Math.min(promptT, promptEvery); syncCalm(); });
 let openCard = null;
 function clearPeek() { clearTimeout(peekTimer); sheet.classList.remove("peek"); sheet.querySelectorAll(".row.active").forEach(r => r.classList.remove("active")); }
 function openSheet(name) {
@@ -2651,7 +2938,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v53 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v54 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
