@@ -456,7 +456,6 @@ const THEMES = [
   { id: "jelly",    name: "Jelly",    hot: "#9ff7c4", cool: "#3fc6ff", liqBot: "#0a3446", liqTop: "#01090f" },
   { id: "ember",    name: "Ember",    hot: "#ff9a3d", cool: "#b3130a", liqBot: "#1e0402", liqTop: "#050101" },
   { id: "citrus",   name: "Citrus",   hot: "#fff36b", cool: "#ff8a1f", liqBot: "#0d2b3a", liqTop: "#020a10" },
-  { id: "sunset",   name: "Sunset",   hot: "#ffb36b", cool: "#e0406a", liqBot: "#3a0f3e", liqTop: "#0c0312" },
   { id: "arctic",   name: "Arctic",   hot: "#e8fbff", cool: "#7fc8ff", liqBot: "#0a3150", liqTop: "#020b14" },
   { id: "cola",     name: "Cola",     hot: "#ff5a40", cool: "#8a0f18", liqBot: "#2a1408", liqTop: "#080301" },
   { id: "toxic",    name: "Toxic",    hot: "#d4ff3d", cool: "#2fe07a", liqBot: "#0b2610", liqTop: "#020803" },
@@ -1821,6 +1820,7 @@ function renamePreset(i, el) {
     if (done) return; done = true;
     const name = inp.value.trim() || old;
     p.name = name; if (activePreset === old) { activePreset = name; store.set("activePreset", name); }
+    if (name !== old && favs.has("mine:" + old)) { favs.delete("mine:" + old); favs.add("mine:" + name); store.set("favs", [...favs]); }   // keep its heart
     store.set("presets", presets); renderPresets();
     if (name !== old) showToast("Renamed to “" + name + "”");
   };
@@ -2014,6 +2014,7 @@ function presetLook(v) {
 // a little picture of the whole look: its liquid, its wax, and its actual lamp
 let favs = new Set(store.get("favs", []));
 const favKey = (p, mine) => (mine ? "mine:" : "lib:") + p.name;
+const favCount = () => LIBRARY.filter(p => favs.has(favKey(p, false))).length + presets.filter(p => favs.has(favKey(p, true))).length;
 function presetTile(p, i) {
   const v = p.s, { t, F } = presetLook(v), b = document.createElement("button");
   b.className = "tile" + (activePreset === p.name ? " on" : "") + (favs.has(favKey(p, i != null)) ? " fav" : ""); b.dataset.name = p.name;
@@ -2050,7 +2051,7 @@ function renderFeatured(anim) {
   if (!grid0.children.length) CATS.forEach(c => { const b = document.createElement("button"); b.dataset.c = c; b.innerHTML = `<i style="background:${CAT_SW[c]}"></i>${c === "All" ? "All looks" : c}`; b.onclick = () => pickCat(c); grid0.appendChild(b); });
   [...grid0.children].forEach(b => b.classList.toggle("on", b.dataset.c === libCat));
   $("#catSw").style.background = CAT_SW[libCat]; $("#catName").textContent = libCat === "All" ? "All looks" : libCat;
-  $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favs.size : LIBRARY.filter(p => p.cat === libCat).length;
+  $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favCount() : LIBRARY.filter(p => p.cat === libCat).length;
 
   box.innerHTML = ""; let k = 0;
   if (libCat === "Favourites") {
@@ -2127,7 +2128,7 @@ function syncPresetTab() {
   $("#libBox").hidden = !lib; $("#mineBox").hidden = lib;
   const pick = $("#catPick"); pick.classList.toggle("static", !lib); if (!lib) catOpen(false);
   if (lib) { $("#catSw").style.background = CAT_SW[libCat]; $("#catName").textContent = libCat === "All" ? "All looks" : libCat;
-    $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favs.size : LIBRARY.filter(p => p.cat === libCat).length; }
+    $("#catCount").textContent = libCat === "All" ? LIBRARY.length : libCat === "Favourites" ? favCount() : LIBRARY.filter(p => p.cat === libCat).length; }
   else { $("#catSw").style.background = "linear-gradient(135deg,var(--cool),var(--hot))"; $("#catName").textContent = "Your presets"; $("#catCount").textContent = presets.length; }
   $("#presetHint").textContent = lib ? "tap to try · hold to favourite" : "tap to apply · hold for options";
 }
@@ -2267,7 +2268,7 @@ function endDrag() {
 sheet.addEventListener("touchend", endDrag);
 sheet.addEventListener("touchcancel", endDrag);
 controls.querySelectorAll(".ctl[data-card]").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
-function setSound(on) { soundOn = on; store.set("sound", on); if (on) { audio.init(); audio.resume(); } audio.level(); syncUI(); }
+function setSound(on) { const was = soundOn; soundOn = on; store.set("sound", on); if (on) { audio.init(); if (was) audio.resume(); else audio.wake(); } audio.level(); syncUI(); }
 $("#swSound").onclick = () => setSound(!soundOn);
 $("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else { tiltX = 0; tiltY = 0; } syncUI(); };
 $("#motionSens").addEventListener("input", e => { motionSens = +e.target.value; store.set("motionSens", motionSens); });
@@ -2650,7 +2651,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v52 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v53 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
