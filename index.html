@@ -219,6 +219,7 @@
   .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
+  .nativeonly{display:none} html.native .nativeonly{display:block}
   #prompt{position:absolute;left:12%;right:12%;top:30%;text-align:center;z-index:5;pointer-events:none;color:#fff;
     font-size:20px;font-weight:300;line-height:1.4;letter-spacing:.02em;text-shadow:0 2px 18px rgba(0,0,0,.55);
     opacity:0;filter:blur(8px);transform:translateY(8px);transition:opacity 2.6s ease,filter 2.6s ease,transform 3s ease}
@@ -416,6 +417,11 @@
     <div class="seg" id="promptSeg" style="grid-template-columns:repeat(3,1fr)">
       <button data-s="360">Rarely</button><button data-s="180">Sometimes</button><button data-s="75">Often</button>
     </div>
+    <div class="nativeonly">
+      <div class="chead" style="margin-top:14px"><span>Nightly reminder</span><span>a gentle nudge at bedtime</span></div>
+      <div class="row"><span>Remind me</span><button class="switch" id="swRemind" aria-label="Nightly reminder"></button></div>
+      <div class="seg" id="remindSeg" style="grid-template-columns:repeat(4,1fr)"><button data-t="21:30">9:30</button><button data-t="22:00">10:00</button><button data-t="22:30">10:30</button><button data-t="23:00">11:00</button></div>
+    </div>
     <div class="chead" style="margin-top:14px"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
     <div class="seg" id="sleepSeg" style="grid-template-columns:repeat(4,1fr)">
       <button data-m="0">Off</button><button data-m="15">15 m</button><button data-m="30">30 m</button><button data-m="60">1 h</button>
@@ -521,8 +527,16 @@ function applyTheme(id, instant) {
   tgt = { hot: hex2rgb(t.hot), cool: hex2rgb(t.cool), liqBot: hex2rgb(t.liqBot), liqTop: hex2rgb(t.liqTop) };
   if (instant || !cur.hot) cur = JSON.parse(JSON.stringify(tgt));
   document.querySelector('meta[name=theme-color]').setAttribute("content", t.liqTop);
+  nat("theme", { name: t.name || id, hot: t.hot, cool: t.cool, liqTop: t.liqTop, liqBot: t.liqBot });
   renderChips(); drawLamp(); renderFrames(); if (typeof renderLiqs === "function") renderLiqs();
 }
+
+/* ---------- native app bridge (only active inside the Lull iOS app) ---------- */
+const NATIVE = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.lull);
+const nat = (type, data) => { if (NATIVE) try { window.webkit.messageHandlers.lull.postMessage({ type, ...(data || {}) }); } catch (e) {} };
+let hapT = 0;
+const haptic = (k, gap) => { if (!NATIVE) return; const n = performance.now(); if (n - hapT < (gap || 90)) return; hapT = n; nat("haptic", { k }); };
+if (NATIVE) document.documentElement.classList.add("native");
 
 /* ---------- settings ---------- */
 const BREATHS = [
@@ -543,6 +557,7 @@ let scape = store.get("scape", "drone"), music = store.get("music", "off"), hz =
 let musicVol = store.get("musicVol", 0.55), hzVol = store.get("hzVol", 0.35), breathVol = store.get("breathVol", 0.6);
 let promptsOn = store.get("prompts", false), promptEvery = store.get("promptEvery", 180);
 let notePulse = 0, breathVel = 0;
+window.__lullNote = v => { notePulse = Math.min(1, notePulse + (v || 0.8)); };   // native music notes make the lava glow
 
 /* ---------- WebGL ---------- */
 const canvas = $("#c");
@@ -1062,7 +1077,7 @@ function breathTarget(dt) {
   breathT = (breathT + dt) % total;
   let t = breathT, ph = 0;
   while (t >= p[ph]) { t -= p[ph]; ph++; }
-  if (ph !== breathPhase) { breathPhase = ph; showCue(PHASE_LABEL[ph]); audio.phase(ph); }
+  if (ph !== breathPhase) { breathPhase = ph; showCue(PHASE_LABEL[ph]); audio.phase(ph); if (ph === 0 || ph === 2) haptic(ph === 0 ? "breathIn" : "breathOut", 500); nat("phase", { ph }); }
   const k = t / p[ph], ease = 0.5 - 0.5 * Math.cos(Math.PI * k);
   return ph === 0 ? ease : ph === 1 ? 1 : ph === 2 ? 1 - ease : 0;
 }
@@ -1167,10 +1182,13 @@ function onMotion(e) {
 }
 let motionHeard = false, motionListening = false;
 function listenMotion() {
+  if (NATIVE) { motionOK = true; nat("motion", { on: true }); return; }
   if (motionListening) return; motionListening = true;
   addEventListener("devicemotion", e => { motionHeard = true; motionOK = true; onMotion(e); });
 }
+window.__lullMotion = (x, y, z) => onMotion({ accelerationIncludingGravity: { x, y, z } });
 function askMotion() {
+  if (NATIVE) { motionOK = true; nat("motion", { on: true }); return; }
   listenMotion();
   if (motionOK) return;
   const D = window.DeviceMotionEvent;
@@ -1354,7 +1372,7 @@ function step1(dt) {
             if (tt >= mergeAfter()) {
               const [big, sm] = a.tr >= c.tr ? [a, c] : [c, a];
               sm.dying = big; touchTime.delete(key); alive--;
-              audio.blub(clamp(big.tr / (u * 0.12), 0, 1), true);
+              audio.blub(clamp(big.tr / (u * 0.12), 0, 1), true); haptic("soft", 250);
               if (sm === a) break; else continue;
             }
           } else touchTime.delete(key);
@@ -1552,7 +1570,7 @@ function bubbleStep(dt) {
   }
   bubbles = bubbles.filter(b => b.pop < 1);
 }
-function popBubble(b) { if (b.pop === 0) { b.pop = 0.001; audio.plip(); } }
+function popBubble(b) { if (b.pop === 0) { b.pop = 0.001; audio.plip(); haptic("light", 60); } }
 
 /* ---------- lamp body (cap + base) ---------- */
 const svg = $("#lamp");
@@ -1816,14 +1834,15 @@ const audio = (() => {
   function level() {
     if (!AC) return;
     master.gain.setTargetAtTime(soundOn ? volume * 0.9 * (1 - sleepFade) : 0, AC.currentTime, 0.5);
-    ambBus.gain.setTargetAtTime(ambVol * 1.4, AC.currentTime, 0.3);
+    ambBus.gain.setTargetAtTime(NATIVE ? 0 : ambVol * 1.4, AC.currentTime, 0.3);
     popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
     toneBus.gain.setTargetAtTime(toneVol * 1.4, AC.currentTime, 0.1);
     lavaBus.gain.setTargetAtTime(lavaVol * 1.6, AC.currentTime, 0.1);
+    nat("audio", { on: soundOn, volume, ambVol, scape, music, musicVol, hz, hzVol });
     if (scapeG.drone) {
-      for (const k in scapeG) scapeG[k].gain.setTargetAtTime(k === scape ? 1 : 0, AC.currentTime, 1.4);
-      musicBus.gain.setTargetAtTime(musicVol * 1.5, AC.currentTime, 0.2);
-      hzBus.gain.setTargetAtTime(hzVol * 1.2, AC.currentTime, 0.4);
+      for (const k in scapeG) scapeG[k].gain.setTargetAtTime(k === scape && !NATIVE ? 1 : 0, AC.currentTime, 1.4);
+      musicBus.gain.setTargetAtTime(NATIVE ? 0 : musicVol * 1.5, AC.currentTime, 0.2);
+      hzBus.gain.setTargetAtTime(NATIVE ? 0 : hzVol * 1.2, AC.currentTime, 0.4);
       breathBus.gain.setTargetAtTime(breathVol * 1.3, AC.currentTime, 0.2);
     }
   }
@@ -1910,12 +1929,12 @@ const audio = (() => {
         brF.frequency.setTargetAtTime(breathPhase === 0 ? 420 + lvl * 1100 : 260 + lvl * 700, AC.currentTime, 0.3);
       }
     },
-    setHz,
-    phase(ph) { if (AC && soundOn && ph === 0 && music === "bowl") { play("bowl", pick(0, 6), 0.8); nextNote = 9; } },
-    chime() { if (AC && soundOn) play("bowl", PENTA[5], 0.9); },
+    setHz(f) { if (!NATIVE) setHz(f); else level(); },
+    phase(ph) { if (NATIVE) return; if (AC && soundOn && ph === 0 && music === "bowl") { play("bowl", pick(0, 6), 0.8); nextNote = 9; } },
+    chime() { if (NATIVE) { nat("chime"); return; } if (AC && soundOn) play("bowl", PENTA[5], 0.9); },
     // a slow generative player: notes come at unhurried, uneven intervals
     tick(dt) {
-      if (!AC || !musicBus || !soundOn || music === "off" || musicVol <= 0.001) return;
+      if (NATIVE || !AC || !musicBus || !soundOn || music === "off" || musicVol <= 0.001) return;
       if ((nextNote -= dt) > 0) return;
       if (music === "bowl") { if (breathPhase < 0) play("bowl", pick(0, 7)); nextNote = 8 + Math.random() * 7; }
       else if (music === "piano") { const i = Math.floor(Math.random() * 8) + 3; play("piano", PENTA[i]); if (Math.random() < 0.35) setTimeout(() => AC && play("piano", PENTA[Math.min(i + 2, 13)], 0.7), 380); nextNote = 2.4 + Math.random() * 3.6; }
@@ -2385,11 +2404,13 @@ function startSession(def) {
   $("#sessName").textContent = def.name; $("#sessPill").classList.add("on");
   if (sleepAt) { sleepAt = 0; sleepMin = 0; }
   closeSheet(); syncCalm(); audio.chime();
+  nat("session", { state: "start", id: def.id, name: def.name, minutes: def.min, sleep: def.end === "sleep" });
 }
 function endSession(done, quiet) {
   if (!sess) return; const s0 = sess; sess = null;
   $("#sessPill").classList.remove("on");
-  if (done && s0.def.end === "sleep") { sleepMin = 1; sleepAt = Date.now(); sleepWake = false; syncEx(); syncCalm(); return; }   // fade out like the wind-down timer
+  nat("session", { state: "end", id: s0.def.id, name: s0.def.name, done: !!done, seconds: Math.round(s0.t), sleep: !!done && s0.def.end === "sleep" });
+  if (done && s0.def.end === "sleep") { sleepMin = 1; sleepAt = Date.now(); sleepWake = false; nat("sleep", { at: sleepAt }); syncEx(); syncCalm(); return; }   // fade out like the wind-down timer
   if (quiet) return;
   const b = s0.back;   // ease back to how things were
   tween = { from: Object.fromEntries(TW.map(k => [k, getV(k)])), to: b.vals, t: 0, dur: 6 };
@@ -2400,6 +2421,13 @@ function endSession(done, quiet) {
   audio.level(); syncCalm(); syncUI();
 }
 $("#sessStop").addEventListener("click", e => { e.stopPropagation(); endSession(false); });
+window.__lullStartSession = id => {
+  const d = SESSIONS.find(x => x.id === id); if (!d) return;
+  if (!started) $("#start").click();
+  startSession(d);
+};
+window.__lullSetSound = on => setSound(!!on);
+
 function renderSessions() {
   const box = $("#sessList"); box.innerHTML = "";
   SESSIONS.forEach(d => {
@@ -2432,6 +2460,12 @@ function syncCalm() {
 }
 for (const [id, set] of [["musicVol", v => musicVol = v], ["hzVol", v => hzVol = v], ["breathVol", v => breathVol = v]])
   $("#" + id).addEventListener("input", e => { set(+e.target.value); store.set(id, +e.target.value); audio.level(); });
+let remindOn = store.get("remind", false), remindAt = store.get("remindAt", "22:00");
+function syncRemind() { $("#swRemind").classList.toggle("on", remindOn); [...$("#remindSeg").children].forEach(b => b.classList.toggle("on", b.dataset.t === remindAt)); $("#remindSeg").style.display = remindOn ? "" : "none"; }
+function sendRemind() { const [h, m] = remindAt.split(":").map(Number); nat("reminder", { on: remindOn, hour: h, minute: m }); }
+$("#swRemind").onclick = () => { remindOn = !remindOn; store.set("remind", remindOn); sendRemind(); syncRemind(); };
+[...$("#remindSeg").children].forEach(b => b.onclick = () => { remindAt = b.dataset.t; store.set("remindAt", remindAt); sendRemind(); syncRemind(); });
+syncRemind();
 $("#swPrompts").onclick = () => { promptsOn = !promptsOn; store.set("prompts", promptsOn); promptT = 20; if (!promptsOn) promptEl.classList.remove("show"); syncCalm(); };
 [...$("#promptSeg").children].forEach(b => b.onclick = () => { promptEvery = +b.dataset.s; store.set("promptEvery", promptEvery); promptT = Math.min(promptT, promptEvery); syncCalm(); });
 let openCard = null;
@@ -2557,7 +2591,7 @@ sheet.addEventListener("touchcancel", endDrag);
 controls.querySelectorAll(".ctl[data-card]").forEach(btn => btn.onclick = e => { e.stopPropagation(); if (openCard === btn.dataset.card) closeSheet(); else openSheet(btn.dataset.card); });
 function setSound(on) { const was = soundOn; soundOn = on; store.set("sound", on); if (on) { audio.init(); if (was) audio.resume(); else audio.wake(); } audio.level(); syncUI(); }
 $("#swSound").onclick = () => setSound(!soundOn);
-$("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else { tiltX = 0; tiltY = 0; } syncUI(); };
+$("#swMotion").onclick = () => { motionOn = !motionOn; store.set("motion", motionOn); if (motionOn) askMotion(); else { tiltX = 0; tiltY = 0; nat("motion", { on: false }); } syncUI(); };
 $("#motionSens").addEventListener("input", e => { motionSens = +e.target.value; store.set("motionSens", motionSens); });
 // iOS only lets a tap ask for motion access: if it hasn't been granted yet, try again on the next touch
 canvas.addEventListener("touchend", () => { if (motionOn && started && !motionOK && !motionHeard) askMotion(); }, { passive: true });
@@ -2709,7 +2743,7 @@ function startFx() { if (!fxOn) { fxOn = true; requestAnimationFrame(fxLoop); } 
 for (const k in EX_DEF) $("#" + k).addEventListener("input", e => { ex[k] = +e.target.value; store.set(k, ex[k]); });
 $("#dim").addEventListener("input", e => { dimAmt = +e.target.value; store.set("dim", dimAmt); });
 [...$("#sleepSeg").children].forEach(b => b.onclick = () => {
-  sleepMin = +b.dataset.m; sleepAt = sleepMin ? Date.now() + sleepMin * 60000 : 0;
+  sleepMin = +b.dataset.m; sleepAt = sleepMin ? Date.now() + sleepMin * 60000 : 0; nat("sleep", { at: sleepAt });
   if (!sleepMin && sleepFade > 0) sleepWake = true;
   syncEx();
 });
@@ -2882,7 +2916,7 @@ function tap(x, y) {
     c.push = { ax: Math.cos(a) * (150 + Math.random() * 30) * g, ay: Math.sin(a) * (150 + Math.random() * 30) * g, t: 0 };
     blobs.push(c);
   }
-  audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1));
+  audio.bloop(clamp(hit.tr / (u * RANGE()[1] * 1.3), 0, 1)); haptic("rigid", 120);
   audio.blub(clamp(hit.tr / (u * 0.12), 0, 1), false);
 }
 canvas.addEventListener("pointerdown", e => {
@@ -2938,7 +2972,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v54 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v55 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -2959,6 +2993,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", () => setTimeout(resize, 300));
 
+if (NATIVE) setTimeout(() => { nat("ready"); { const t = themeById(themeId); nat("theme", { name: t.name || themeId, hot: t.hot, cool: t.cool, liqTop: t.liqTop, liqBot: t.liqBot }); } }, 300);
 try { if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
 
 resize(); seedBlobs(); applyTheme(themeId, true); syncUI(); renderPresets();

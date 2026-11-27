@@ -1,0 +1,6 @@
+Lull.xcodeproj/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+.DS_Store
