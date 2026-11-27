@@ -375,14 +375,8 @@
 
   <section class="card" data-card="light">
     <div class="chead"><span>Light</span><span>glowing from the bulb below</span></div>
-    <div class="seg two" id="styleSeg" style="margin-bottom:4px">
-      <button data-s="soft">Soft</button>
-      <button data-s="3d">Realistic 3D</button>
-    </div>
-    <div class="seg two" id="modeSeg" style="margin-bottom:4px">
-      <button data-m="bulb">Bulb below</button>
-      <button data-m="classic">Classic</button>
-    </div>
+    <div class="row"><span>Depth</span><input type="range" id="depth" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Bulb below</span><input type="range" id="bulbAmt" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Brightness</span><input type="range" id="light" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Shadows</span><input type="range" id="shadow" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Translucency</span><input type="range" id="trans" min="0" max="1" step="0.01"></div>
@@ -636,8 +630,8 @@ void main(){
     float z2=b.z*b.z, w=z2/(dd+z2); gw+=w; gh+=w*hb;
     // wax shading wax: a blob closer to the bulb shades the parts of the wax just above it
     vec2 bd=b.xy-uBulb; float bl=max(length(bd),1.); vec2 bu=bd/bl; float al=dot(pd,bu)-bl;
-    if(uMode<0.5){ vec2 ds=p-(b.xy-uLdir*0.26*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
-    else if(uShadow>0.01 && al>b.z*0.55){
+    if(uMode<0.999){ vec2 ds=p-(b.xy-uLdir*0.26*b.z); float ks=max(0.,1.-dot(ds,ds)/(R2*1.3)); fs+=ks*ks*2.*smoothstep(0.012,0.04,b.z/uRes.y); }
+    if(uMode>0.001 && uShadow>0.01 && al>b.z*0.55){
       float lat=length(pd-bu*(al+bl)), wd=b.z*(0.8+0.06*al/b.z);
       sh=max(sh,(1.-smoothstep(wd*0.2,wd*1.3,lat))*smoothstep(b.z*0.55,b.z*1.25,al)*exp(-al/(b.z*4.5))*gwt*smoothstep(0.01,0.04,b.z/uRes.y));
     }
@@ -645,6 +639,7 @@ void main(){
   }
   S1+=G1; Sg+=Gg; if(G1.x>M1.x){ M1=G1; Mg=Gg; }
   { vec4 F1=mix(M1,S1,uMergeK)+D1; f=F1.x; h=F1.y; rw=F1.z; grad=mix(Mg,Sg,uMergeK)+Dg; }
+  sh*=uMode; fs*=1.-uMode;   // classic and bulb shadows blend as the Bulb slider moves
   float lf=0.3+1.4*uLight+0.22*uBreath, S=uShadow, T=uTrans;
   float heat=clamp(f>0.001?h/f:gh/max(gw,1e-4),0.,1.);
   float y=p.y/uRes.y, inside=1., hw=1., dxn=0.;
@@ -658,8 +653,8 @@ void main(){
   vec3 waxc=mix(uCool,uHot,heat);
   vec3 wtint=uWarm<0.5?mix(vec3(0.45,0.72,1.45),vec3(1.),uWarm*2.):mix(vec3(1.),vec3(1.55,0.78,0.32),uWarm*2.-1.);
   vec3 bulbc=mix(uHot,vec3(1.,0.85,0.6),0.25)*wtint;
-  vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=uMode>0.5?tb/db:uLdir;
-  float att=uMode>0.5?1.25/(1.+pow(db/(uRes.y*0.6),2.)):1.;
+  vec2 tb=uBulb-p; float db=max(length(tb),1.); vec2 tbn=normalize(mix(uLdir,tb/db,uMode)+vec2(1e-5));
+  float att=mix(1.,1.25/(1.+pow(db/(uRes.y*0.6),2.)),uMode);
   // liquid: its gradient, a gentle glow rising from the bulb, and the wax's own glow
   vec3 liq=mix(uLiqBot,uLiqTop,smoothstep(0.,1.,y));
   // the bulb: a warm hot-spot at the bottom that spreads upward and fades; Brightness turns it up
@@ -668,7 +663,7 @@ void main(){
   liq+=bulbc*bulbI*(0.85*bspot+0.3*bwide+0.12*exp(-y*3.));
   float gsm=1.-exp(-gw*(0.35+1.6*uGlow));    // soft, saturating halo: no plateau, no hard rim
   liq+=mix(uCool,uHot,clamp(gh/max(gw,1e-4),0.,1.))*gsm*gsm*(0.26+0.14*uBreath)*(0.75+0.3*uLight)*uGlow*uGlow*4.;
-  if(uMode<0.5) liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
+  liq*=1.-0.75*smoothstep(0.3,1.,S)*smoothstep(0.2,1.3,fs);
   // the wax's shape: outward direction, how close to the edge (rho), how thick
   float gl2=length(grad), Rd=rw/max(f,1e-4)*1.5;
   float thick=clamp((f-1.)/2.4,0.,1.);
@@ -676,12 +671,13 @@ void main(){
   float hs=Rd*1.1*exp(-max(f-1.,0.)*0.9)*gl2*0.9;      // slope of a smooth dome built from the wax field
   float rho=hs/sqrt(1.+hs*hs);
   vec2 q=p/uRes.y*7.;
-  vec3 wax; vec2 rp;
-  if(uStyle>0.5){
+  // Depth blends the flat, soft wax (0) into rounded, realistic 3D wax (1)
+  vec3 wax=vec3(0.), waxS=vec3(0.); vec2 rp=p, rpS=p;
+  if(uStyle>0.001){
     // natural wax: rounded, gently textured, lit by the bulb beneath
     vec2 wob=vec2(vnoise(q+vec2(uTime*0.04,0.))-0.5, vnoise(q*1.7-vec2(0.,uTime*0.03))-0.5);
     vec3 n=normalize(vec3(dir*rho+wob*0.1*(1.-rho), sqrt(max(0.,1.-rho*rho))+0.02));
-    vec3 Lv=uMode>0.5?normalize(vec3(tbn*0.9,0.42)):normalize(vec3(uLdir*0.75,0.65));
+    vec3 Lv=normalize(mix(vec3(uLdir*0.75,0.65),vec3(tbn*0.9,0.42),uMode));
     float wr=mix(0.9,0.25,S);                                   // stronger shadows = harder fall-off on the far side
     float wrap=clamp((dot(n,Lv)+wr)/(1.+wr),0.,1.);
     wax=waxc*(mix(0.38,0.13,S)+0.75*wrap*att*lf);
@@ -691,9 +687,10 @@ void main(){
     float sheen=smoothstep(0.62,1.,dot(n,normalize(vec3(-0.25,0.55,0.8))))*0.07;
     wax=wax*(1.-S*0.42*sh)+vec3(1.,0.93,0.85)*(glint+sheen)*(1.-sh*0.7)+waxc*pow(1.-n.z,3.)*0.16;
     rp=p+n.xy*Rd*(0.25+0.9*T);
-  } else {
+  }
+  if(uStyle<0.999){
     float core=smoothstep(1.,2.6,f);
-    wax=mix(waxc*0.88,mix(waxc,vec3(1.),0.1+0.36*min(uLight,0.5)),core);
+    vec3 wax=mix(waxc*0.88,mix(waxc,vec3(1.),0.1+0.36*min(uLight,0.5)),core);
     float rim=1.-smoothstep(1.,1.7,f);
     wax=mix(wax,waxc*1.15+uHot*0.1,clamp(rim*0.28*lf,0.,1.));
     // body shading: the side facing the bulb is lit, the far side falls into shadow
@@ -701,8 +698,9 @@ void main(){
     wax*=mix(1.,0.42+0.78*lit,S*0.85*uMode);
     wax*=1.-S*0.32*sh;
     wax*=mix(1.,0.62+0.75*att*(0.35+0.75*uLight),uMode);   // nearer the bulb = more lit
-    rp=p+dir*rho*Rd*0.6*T;
+    waxS=wax; rpS=p+dir*rho*Rd*0.6*T;
   }
+  wax=mix(waxS,wax,uStyle); rp=mix(rpS,rp,uStyle);
   // metallic: the wax turns to liquid mercury, a mirror that reflects the room, the glowing liquid and the bulb
   if(uMetal>0.001){
     vec2 mw=vec2(vnoise(q*0.8+vec2(uTime*0.05,0.))-0.5, vnoise(q*1.3-vec2(0.,uTime*0.04))-0.5);
@@ -729,7 +727,7 @@ void main(){
   float edgeb=1.-smoothstep(1.,1.6,f);
   float tm=T*(0.97-0.45*thick*(1.-T))*(1.-0.35*edgeb)*(1.-0.85*uMetal);
   wax=mix(wax,seen,clamp(tm,0.,0.95));
-  float edge=smoothstep(uStyle>0.5?0.96:0.9,uStyle>0.5?1.04:1.1,f);
+  float edge=smoothstep(mix(0.9,0.96,uStyle),mix(1.1,1.04,uStyle),f);
   vec3 col=mix(liq,wax,edge);
   // air bubbles: tiny, mostly clear, a faint edge and a pin-point catch-light
   vec3 bc=vec3(0.); float bdk=0.;
@@ -792,8 +790,9 @@ function screenSize() {
 }
 let view = store.get("view", "full"), viewSel = view;
 let amount = store.get("amount", 0.5);
-let style = store.get("style", "soft"), bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
+let style = store.get("style", "soft"), depth = 0, bulbAmt = 1, dDepth = 0, dBulb = 1, lookT = 0, bubbleAmt = store.get("bubbles", 0.3), absorb = store.get("absorb", 0.35), stirSens = store.get("stir", 0.5);
 let lavaVol = store.get("lavaVol", 0.6), ambVol = store.get("ambVol", 0.7), popVol = store.get("popVol", 0.7), toneVol = store.get("toneVol", 0.7), toneStyle = store.get("toneStyle", "chime"), trans = store.get("trans", 0.4), lightMode = store.get("lightMode", "bulb");
+depth = dDepth = store.get("depth", style === "3d" ? 1 : 0); bulbAmt = dBulb = store.get("bulbAmt", lightMode === "bulb" ? 1 : 0);
 let particles = store.get("particles", 0.5), light = store.get("light", 0.5), shadow = store.get("shadow", 0.5);
 let W = 0, H = 0, S = 1, u = 1, g = 1, resQ = 1, slowT = 0, fastT = 0, resLock = 0;
 let tank = { x0: 0, y0: 0, w: 1, h: 1 }, lampGeo = null;
@@ -1731,8 +1730,8 @@ function render() {
   // the bulb: under the bottom of the screen, or at the base of the lamp glass
   if (lampGeo) gl.uniform2f(U.uBulb, lampGeo.cx * S, (H - lampGeo.gB) * S - (lampGeo.gB - lampGeo.gT) * S * 0.06);
   else gl.uniform2f(U.uBulb, W * 0.5 * S, -H * 0.12 * S);
-  gl.uniform1f(U.uTrans, trans); gl.uniform1f(U.uMode, lightMode === "bulb" ? 1 : 0); gl.uniform2f(U.uLdir, -0.368, 0.93);
-  gl.uniform1f(U.uLight, light); gl.uniform1f(U.uShadow, shadow); gl.uniform1f(U.uStyle, style === "3d" ? 1 : 0);
+  gl.uniform1f(U.uTrans, trans); { const n = performance.now(), k = Math.min(1, (n - (lookT || n)) / 1000 * 3); lookT = n; dDepth += (depth - dDepth) * k; dBulb += (bulbAmt - dBulb) * k; } gl.uniform1f(U.uMode, dBulb); gl.uniform2f(U.uLdir, -0.368, 0.93);
+  gl.uniform1f(U.uLight, light); gl.uniform1f(U.uShadow, shadow); gl.uniform1f(U.uStyle, dDepth);
   let nb = 0;
   for (const b of bubbles) {
     if (nb >= MAXB) break;
@@ -2037,7 +2036,7 @@ const ex = {}; for (const k in EX_DEF) ex[k] = store.get(k, EX_DEF[k]);
 let dimAmt = store.get("dim", 0), sleepMin = 0, sleepAt = 0, sleepFade = 0, dimShown = -1;
 const PRESET_KEYS = () => ({ ...ex, theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
   particles, style, light, shadow, sound: soundOn, vol: volume,
-  ambVol, popVol, toneVol, toneStyle, trans, lightMode, frame: frameId, lampMods: { ...lampMods } });
+  ambVol, popVol, toneVol, toneStyle, trans, lightMode, depth, bulbAmt, frame: frameId, lampMods: { ...lampMods } });
 let presets = store.get("presets", []), activePreset = store.get("activePreset", null);
 function renamePreset(i, el) {
   const p = presets[i], old = p.name;
@@ -2110,6 +2109,7 @@ function applyPreset(p) {
   volume = v.vol ?? volume;
   for (const k in EX_DEF) { ex[k] = v[k] ?? EX_DEF[k]; store.set(k, ex[k]); }
   ambVol = v.ambVol ?? ambVol; popVol = v.popVol ?? popVol; toneVol = v.toneVol ?? toneVol; toneStyle = v.toneStyle ?? toneStyle; trans = v.trans ?? trans; lightMode = v.lightMode ?? lightMode;
+  depth = v.depth ?? (style === "3d" ? 1 : 0); bulbAmt = v.bulbAmt ?? (lightMode === "bulb" ? 1 : 0); store.set("depth", depth); store.set("bulbAmt", bulbAmt);
   for (const [k, val] of Object.entries({ ambVol, popVol, toneVol, toneStyle, trans, lightMode })) store.set(k, val); audio.level();
   for (const [k, val] of Object.entries({ amount, absorb, stir: stirSens, bubbles: bubbleAmt, particles, style, light, shadow, vol: volume })) store.set(k, val);
   applyTheme(v.theme || themeId);
@@ -2139,8 +2139,7 @@ function syncUI() {
   { const vb = $("#viewBtn"), lampNow = viewSel === "lamp";
     vb.querySelector("span").textContent = lampNow ? "Full" : "Lamp";
     vb.querySelector("svg").innerHTML = lampNow ? '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>' : '<path d="M10 3.5h4M9.5 3.5 7.5 17h9l-2-13.5M7.5 17 6 20.5h12L16.5 17"/>'; }
-  [...$("#styleSeg").children].forEach(b => b.classList.toggle("on", b.dataset.s === style));
-  [...$("#modeSeg").children].forEach(b => b.classList.toggle("on", b.dataset.m === lightMode));
+  $("#depth").value = depth; $("#bulbAmt").value = bulbAmt;
   $("#bub").value = bubbleAmt; $("#absorb").value = absorb; $("#stirk").value = stirSens;
   $("#ambVol").value = ambVol; $("#popVol").value = popVol; $("#toneVol").value = toneVol; $("#trans").value = trans;
   [...$("#toneSeg").children].forEach(b => b.classList.toggle("on", b.dataset.t === toneStyle));
@@ -2436,6 +2435,7 @@ function glideTo(look, dur) {
   colourRate = 0.12; applyTheme(v.theme);
   if (v.style && v.style !== style) style = v.style;
   if (v.lightMode) lightMode = v.lightMode;
+  depth = v.depth ?? (style === "3d" ? 1 : 0); bulbAmt = v.bulbAmt ?? (lightMode === "bulb" ? 1 : 0);
 }
 let colourRate = 1.6, bubT = 0;
 function calmTick(dt) {
@@ -2471,7 +2471,7 @@ function startSession(def) {
   if (sess) endSession(false, true);
   audio.init(); if (!soundOn) setSound(true); else audio.resume();
   sess = { def, t: 0, i: 0, shown: "",
-    back: { theme: themeId, breathId, scape, music, hz, style, lightMode, vals: Object.fromEntries(TW.map(k => [k, getV(k)])) } };
+    back: { theme: themeId, breathId, scape, music, hz, style, lightMode, depth, bulbAmt, vals: Object.fromEntries(TW.map(k => [k, getV(k)])) } };
   $("#sessName").textContent = def.name; $("#sessPill").classList.add("on");
   if (sleepAt) { sleepAt = 0; sleepMin = 0; }
   closeSheet(); syncCalm(); audio.chime();
@@ -2485,7 +2485,7 @@ function endSession(done, quiet) {
   if (quiet) return;
   const b = s0.back;   // ease back to how things were
   tween = { from: Object.fromEntries(TW.map(k => [k, getV(k)])), to: b.vals, t: 0, dur: 6 };
-  colourRate = 0.5; applyTheme(b.theme); style = b.style; lightMode = b.lightMode;
+  colourRate = 0.5; applyTheme(b.theme); style = b.style; lightMode = b.lightMode; depth = b.depth; bulbAmt = b.bulbAmt;
   breathId = b.breathId; breathT = 0; breathPhase = -1; scape = b.scape; music = b.music; hz = b.hz; audio.setHz(hz);
   if (breathId === "off") cueEl.style.opacity = 0;
   if (done) showPrompt("Welcome back."); else { clearTimeout(promptHideT); promptEl.classList.remove("show"); }
@@ -2677,8 +2677,8 @@ $("#swCue").onclick = () => {
 };
 $("#viewBtn").addEventListener("click", e => { e.stopPropagation(); setView(viewSel === "lamp" ? "full" : "lamp"); });
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
-[...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
-[...$("#modeSeg").children].forEach(b => b.onclick = () => { lightMode = b.dataset.m; store.set("lightMode", lightMode); syncUI(); });
+$("#depth").addEventListener("input", e => { depth = dDepth = +e.target.value; style = depth >= 0.5 ? "3d" : "soft"; store.set("depth", depth); store.set("style", style); });
+$("#bulbAmt").addEventListener("input", e => { bulbAmt = dBulb = +e.target.value; lightMode = bulbAmt >= 0.5 ? "bulb" : "classic"; store.set("bulbAmt", bulbAmt); store.set("lightMode", lightMode); });
 document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => { if (el.closest('[data-card="presets"]') || el.closest("#calmTabs")) return; el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
   if (activePreset) { activePreset = null; store.set("activePreset", null); markActive(); }
 }); });
@@ -2738,7 +2738,9 @@ document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   const put = v => { v = clamp(v, 0, 1); if (Math.abs(v - +inp.value) < 0.001) return; inp.value = v; inp.dispatchEvent(new Event("input", { bubbles: true })); show(); };
   BARS.push(show);
   let g = null, glide = 0;
-  const on = () => { clearTimeout(peekTimer); sheet.classList.add("peek"); row.classList.add("active"); };
+  // sound sliders change nothing you can see, so the menu stays put while you use them
+  const quiet = /^(vol|ambVol|musicVol|hzVol|breathVol|popVol|toneVol|lavaVol)$/.test(inp.id);
+  const on = () => { if (quiet) return; clearTimeout(peekTimer); sheet.classList.add("peek"); row.classList.add("active"); };
   const off = () => { clearTimeout(peekTimer); peekTimer = setTimeout(() => { sheet.classList.remove("peek"); row.classList.remove("active"); }, 450); };
   row.addEventListener("pointerdown", e => {
     cancelAnimationFrame(glide);
@@ -2789,6 +2791,17 @@ function drawFx(b, t) {
       const e = c.createLinearGradient(Math.max(0, fw - 70), 0, fw, 0); e.addColorStop(0, "rgba(0,0,0,0)"); e.addColorStop(1, `rgba(0,0,0,${0.45 * k})`);
       c.fillStyle = e; c.fillRect(0, 0, W0, H);
       b.fill.style.boxShadow = `inset 0 1px 0 rgba(255,255,255,${0.28 * (1 - k)}),${8 + 16 * k}px 4px ${14 + 14 * k}px rgba(0,0,0,${0.75 * k})`; break; }
+    case "depth": {
+      // a drop that goes from a flat disc to a rounded, lit sphere
+      const x = fw - 26, y = H / 2, r = 12, gr = c.createRadialGradient(x - r * 0.45 * v, y - r * 0.45 * v, r * 0.1, x, y, r);
+      gr.addColorStop(0, `rgba(255,255,255,${0.45 + 0.3 * v})`); gr.addColorStop(0.55 + 0.4 * (1 - v), "rgba(255,255,255,.32)"); gr.addColorStop(1, `rgba(0,0,0,${0.35 * v})`);
+      c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 6.3); c.fill(); break; }
+    case "bulbAmt": {
+      // warm light rising from the bottom of the bar
+      const g = c.createLinearGradient(0, H, 0, 0); g.addColorStop(0, `rgba(255,236,190,${0.55 * v})`); g.addColorStop(0.6, `rgba(255,220,170,${0.12 * v})`); g.addColorStop(1, "rgba(255,220,170,0)");
+      c.fillStyle = g; c.fillRect(0, 0, fw, H);
+      const gx = fw * 0.5, rg = c.createRadialGradient(gx, H + 4, 2, gx, H + 4, H * (0.6 + 0.9 * v)); rg.addColorStop(0, `rgba(255,245,215,${0.6 * v})`); rg.addColorStop(1, "rgba(255,245,215,0)");
+      c.fillStyle = rg; c.fillRect(0, 0, fw, H); break; }
     case "trans": {
       b.fill.style.opacity = 1 - 0.8 * v;
       c.strokeStyle = `rgba(255,255,255,${0.12 + 0.3 * v})`; c.lineWidth = 1.2;
@@ -3084,7 +3097,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v61 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v62 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
