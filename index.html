@@ -397,6 +397,7 @@
     <div class="row"><span>Particles</span><input type="range" id="part" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Flow speed</span><input type="range" id="speed" min="0" max="1" step="0.01"></div>
     <div class="row"><span>Wobble</span><input type="range" id="wobble" min="0" max="1" step="0.01"></div>
+    <div class="row"><span>Metallic</span><input type="range" id="metal" min="0" max="1" step="0.01"></div>
     <div class="row" style="margin-top:6px"><span>Shake &amp; tilt</span><button class="switch" id="swMotion" aria-label="Shake to stir and tilt to drift"></button></div>
     <div class="row" id="motionRow"><span>Motion sensitivity</span><input type="range" id="motionSens" min="0" max="1" step="0.01"></div>
   </section>
@@ -603,7 +604,7 @@ const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
 const FS = `
 precision highp float;
 uniform vec2 uRes; uniform vec4 uB[${MAX}]; uniform int uN;
-uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode, uWarm, uGlow, uVig, uMergeK; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
+uniform vec3 uHot, uCool, uLiqTop, uLiqBot; uniform float uMetal, uTime, uBreath, uLamp, uLight, uShadow, uStyle, uTrans, uMode, uWarm, uGlow, uVig, uMergeK; uniform vec2 uBulb, uLdir; uniform vec4 uGlass; uniform vec4 uBub[24]; uniform int uNB;
 float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float vnoise(vec2 x){ vec2 i=floor(x), u=fract(x); u=u*u*(3.-2.*u);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y); }
@@ -699,12 +700,31 @@ void main(){
     wax*=mix(1.,0.62+0.75*att*(0.35+0.75*uLight),uMode);   // nearer the bulb = more lit
     rp=p+dir*rho*Rd*0.6*T;
   }
+  // metallic: the wax turns to liquid mercury, a mirror that reflects the room, the glowing liquid and the bulb
+  if(uMetal>0.001){
+    vec2 mw=vec2(vnoise(q*0.8+vec2(uTime*0.05,0.))-0.5, vnoise(q*1.3-vec2(0.,uTime*0.04))-0.5);
+    float rm=pow(rho,0.5);                                                 // rounder than the wax: a true droplet
+    vec3 nm=normalize(vec3(dir*rm+mw*0.06*(1.-rm), sqrt(max(0.,1.-rm*rm))+0.03));
+    vec3 rf=vec3(2.*nm.z*nm.xy, 2.*nm.z*nm.z-1.);
+    // a chrome-style studio: bright sky above a crisp horizon, the glowing liquid below it
+    float hz=rf.y*0.85+rf.z*0.3+0.12+mw.x*0.12;
+    vec3 sky=mix(vec3(0.42,0.44,0.48),vec3(1.05,1.04,1.02),smoothstep(0.1,0.95,hz))*(0.85+0.35*uLight);
+    float graz=smoothstep(0.2,0.98,1.-nm.z);
+    vec3 ground=mix(vec3(0.05,0.05,0.06),liq*0.9,0.5)+mix(uCool,uHot,0.5)*(0.3+0.3*uLight)*pow(graz,3.);
+    vec3 env=mix(ground,sky,smoothstep(-0.03,0.05,hz));
+    env*=1.-0.3*exp(-pow(hz/0.04,2.));                                   // a dark line right on the horizon
+    env+=vec3(1.)*pow(max(dot(rf,normalize(vec3(0.45,0.55,0.7))),0.),90.)*1.1;
+    env+=bulbc*lf*att*smoothstep(-0.3,-0.9,rf.y)*0.55;
+    env*=mix(1.,0.45,smoothstep(0.9,1.,rm));                             // a dark contour where the droplet turns away
+    vec3 metal=env*mix(vec3(0.9,0.91,0.94),waxc,0.15)*(1.-S*0.2*sh);
+    wax=mix(wax,metal,uMetal);
+  }
   // translucency: thin wax lets the light and liquid behind it through, tinted by the wax
   float ry=uLamp>0.5?(rp.y-uGlass.y)/(uGlass.z-uGlass.y):rp.y/uRes.y;
   vec3 behind=mix(uLiqBot,uLiqTop,smoothstep(0.,1.,ry))+bulbc*lf*(0.07*exp(-ry*4.)+0.1*exp(-length(uBulb-rp)/(uRes.y*0.3)));
   vec3 seen=behind*(0.3+1.05*waxc)+waxc*att*lf*(0.18+0.25*(1.-thick))*(1.-0.5*S*sh);
   float edgeb=1.-smoothstep(1.,1.6,f);
-  float tm=T*(0.97-0.45*thick*(1.-T))*(1.-0.35*edgeb);
+  float tm=T*(0.97-0.45*thick*(1.-T))*(1.-0.35*edgeb)*(1.-0.85*uMetal);
   wax=mix(wax,seen,clamp(tm,0.,0.95));
   float edge=smoothstep(uStyle>0.5?0.96:0.9,uStyle>0.5?1.04:1.1,f);
   vec3 col=mix(liq,wax,edge);
@@ -750,7 +770,7 @@ gl.linkProgram(prog); gl.useProgram(prog);
 const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 const aLoc = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(aLoc); gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uWarm", "uGlow", "uVig", "uMergeK", "uProf", "uProfT"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+const U = {}; ["uRes", "uB", "uN", "uHot", "uCool", "uLiqTop", "uLiqBot", "uTime", "uBreath", "uLamp", "uGlass", "uLight", "uShadow", "uStyle", "uBub", "uNB", "uBulb", "uTrans", "uMode", "uLdir", "uWarm", "uGlow", "uVig", "uMergeK", "uProf", "uProfT", "uMetal"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 /* ---------- view, tank & sizing ---------- */
 const appEl = $("#app");
@@ -1702,7 +1722,7 @@ function render() {
   gl.uniform1f(U.uMergeK, clamp((absorb - 0.02) / 0.3, 0, 1)); gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
   if (++cssTick % 12 === 0) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
-  gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, Math.min(1.4, breathLvl + notePulse * 0.6));
+  gl.uniform1f(U.uMetal, ex.metal); gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, Math.min(1.4, breathLvl + notePulse * 0.6));
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
   { const P = curFrame().prof; gl.uniform4f(U.uProf, P[0], P[1], P[2], P[3]); gl.uniform1f(U.uProfT, P[4]); }
   // the bulb: under the bottom of the screen, or at the base of the lamp glass
@@ -2008,7 +2028,7 @@ const ICON_ON = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4
 const ICON_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
 /* ---------- presets: save the whole setup under a name, apply with a tap ---------- */
 // extra look & feel settings (each 0..1; 0.5 is the neutral middle where that makes sense)
-const EX_DEF = { drift: 0, vib: 0.5, warm: 0.5, glow: 0.5, vig: 0.5, speed: 0.5, wobble: 0.5 };
+const EX_DEF = { drift: 0, vib: 0.5, warm: 0.5, glow: 0.5, vig: 0.5, speed: 0.5, wobble: 0.5, metal: 0 };
 const ex = {}; for (const k in EX_DEF) ex[k] = store.get(k, EX_DEF[k]);
 let dimAmt = store.get("dim", 0), sleepMin = 0, sleepAt = 0, sleepFade = 0, dimShown = -1;
 const PRESET_KEYS = () => ({ ...ex, theme: themeId, custom: { ...custom }, view: viewSel, amount, absorb, stir: stirSens, bubbles: bubbleAmt,
@@ -2569,7 +2589,7 @@ function placeSheet(name) {
   const sh = Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58));
   rs.setProperty("--sh", sh + "px");
   rs.setProperty("--ox", Math.round(bx - left) + "px");
-  rs.height = sh + "px";   // every panel keeps one steady size, so switching tabs never jumps
+  rs.height = tall || name === "calm" ? sh + "px" : "";   // tall panels and Calm keep one steady size, so its sections never jump
 }
 // keep the whole lamp (or the whole tank in full screen) in view above the open menu
 function frameView() {
@@ -2791,6 +2811,13 @@ function drawFx(b, t) {
     case "glow": { for (let i = 0; i < 3; i++) { const x = (i + 0.5) / 3 * fw, gg = c.createRadialGradient(x, H / 2, 2, x, H / 2, 8 + 26 * v); gg.addColorStop(0, `rgba(255,240,220,${0.25 + 0.4 * v})`); gg.addColorStop(1, "rgba(255,240,220,0)"); c.fillStyle = gg; c.fillRect(0, 0, fw, H); } break; }
     case "vig": { const gg = c.createRadialGradient(fw / 2, H / 2, 4, fw / 2, H / 2, Math.max(fw, 40) * 0.7); gg.addColorStop(0, "rgba(0,0,0,0)"); gg.addColorStop(1, `rgba(0,0,0,${0.75 * v})`); c.fillStyle = gg; c.fillRect(0, 0, fw, H); break; }
     case "speed": { for (let i = 0; i < 6; i++) { const x = ((t * (0.05 + 0.5 * v) + i / 6) % 1) * fw; circ(x, H / 2 + Math.sin(i * 2) * 8, 3, "rgba(255,255,255,.5)"); } break; }
+    case "metal": {
+      // the bar turns to polished mercury: a silver sheen with a soft highlight gliding across it
+      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgba(235,238,245,${0.75 * v})`); g.addColorStop(0.45, `rgba(120,124,135,${0.8 * v})`); g.addColorStop(0.55, `rgba(70,72,80,${0.8 * v})`); g.addColorStop(1, `rgba(200,205,215,${0.7 * v})`);
+      c.fillStyle = g; c.fillRect(0, 0, fw, H);
+      const hx = ((t * 0.35) % 1.6 - 0.3) * fw, h = c.createLinearGradient(hx - 40, 0, hx + 40, 0);
+      h.addColorStop(0, "rgba(255,255,255,0)"); h.addColorStop(0.5, `rgba(255,255,255,${0.55 * v})`); h.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = h; c.fillRect(0, 0, fw, H); break; }
     case "wobble": { c.fillStyle = "rgba(255,255,255,.28)"; c.beginPath(); for (let a = 0; a <= 6.3; a += 0.2) { const rr = 11 * (1 + (0.04 + 0.3 * v) * Math.sin(a * 3 + t * 2)), x = fw - 26 + Math.cos(a) * rr, y = H / 2 + Math.sin(a) * rr; a ? c.lineTo(x, y) : c.moveTo(x, y); } c.fill(); break; }
     case "dim": { c.fillStyle = `rgba(0,0,0,${0.7 * v})`; c.fillRect(0, 0, fw, H); break; }
     case "motionSens": { const a = Math.sin(t * (1 + 6 * v)) * (0.1 + 0.5 * v); c.save(); c.translate(fw - 24, H / 2); c.rotate(a); c.strokeStyle = "rgba(255,255,255,.6)"; c.lineWidth = 1.6; c.strokeRect(-6, -10, 12, 20); c.restore(); break; }
@@ -3044,7 +3071,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v58 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v59 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
