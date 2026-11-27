@@ -225,7 +225,6 @@
   .cpane{display:none}
   .cpane.on{display:block;animation:paneIn .38s cubic-bezier(.16,1,.3,1)}
   @keyframes paneIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .card[data-card="calm"]{transition:height .38s cubic-bezier(.16,1,.3,1)}
   .fxtoggle{display:flex;align-items:center;gap:8px;width:100%;margin-top:12px;padding:11px 12px;border:none;border-radius:14px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;text-align:left}
   .fxtoggle small{flex:1;font-size:11px;opacity:.55}
   .fxtoggle i{font-style:normal;opacity:.6;transition:transform .35s cubic-bezier(.16,1,.3,1)}
@@ -1763,7 +1762,7 @@ function frame(now) {
 
 /* ---------- audio ---------- */
 const audio = (() => {
-  let unplugged = false, AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
+  let hushUntil = 0, hushT = 0, unplugged = false, AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
   let scapeG = {}, musicBus, hzBus, breathBus, brG, brF, hzOsc = [], nextNote = 2, lastLvl = 0, wnb = null, lastPh = -1;
   // D major pentatonic, low and gentle
   const PENTA = [73.42, 82.41, 92.5, 110, 123.47, 146.83, 164.81, 185, 220, 246.94, 293.66, 329.63, 369.99, 440];
@@ -1867,6 +1866,7 @@ const audio = (() => {
   const pick = (lo, hi) => PENTA[lo + Math.floor(Math.random() * (hi - lo))];
   function level() {
     if (!AC) return;
+    if (performance.now() < hushUntil) return;   // a home swipe is in progress: stay silent until it's clear
     master.gain.setTargetAtTime(soundOn ? volume * 0.9 * (1 - sleepFade) : 0, AC.currentTime, 0.5);
     ambBus.gain.setTargetAtTime(NATIVE ? 0 : ambVol * 1.4, AC.currentTime, 0.3);
     popBus.gain.setTargetAtTime(popVol * 1.4, AC.currentTime, 0.1);
@@ -1887,8 +1887,18 @@ const audio = (() => {
     gg.gain.exponentialRampToValueAtTime(0.0001, tt + a + rel);
     o.connect(gg); gg.connect(bus); o.start(tt); o.stop(tt + a + rel + 0.05);
   }
+  // quietly duck everything (and empty the echo) when a swipe starts on the home bar;
+  // if the app doesn't close, the sound glides back in
+  function hush() {
+    if (!AC) return;
+    hushUntil = performance.now() + 900;
+    const n = AC.currentTime;
+    try { master.gain.cancelScheduledValues(n); master.gain.setTargetAtTime(0, n, 0.015); fb.gain.setTargetAtTime(0, n, 0.015); } catch (e) {}
+    clearTimeout(hushT);
+    hushT = setTimeout(() => { if (document.hidden) return; try { fb.gain.setTargetAtTime(0.42, AC.currentTime, 0.1); } catch (e) {} level(); }, 950);
+  }
   return {
-    init, level, resume,
+    init, level, resume, hush,
     // leaving the app: fade everything to silence and empty the echo first, then pause audio.
     // Cutting it off mid-sound is what made iOS play a glitchy tone as the app closed.
     suspend() {
@@ -1904,7 +1914,7 @@ const audio = (() => {
       clearTimeout(hideT); AC.suspend().catch(() => {});
     },
     wake() {
-      if (!AC) return; clearTimeout(hideT);
+      if (!AC) return; clearTimeout(hideT); clearTimeout(hushT); hushUntil = 0;
       const n = AC.currentTime;
       try { fb.gain.setValueAtTime(0.42, n); master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(0, n); if (unplugged) { master.connect(AC.destination); unplugged = false; } } catch (e) {}
       resume(); level();
@@ -2556,9 +2566,10 @@ function placeSheet(name) {
   const left = tall ? W - pw - 10 : dl;
   const rs = sheet.style; rs.setProperty("--pw", (tall ? pw : dw) + "px");
   rs.setProperty("--sl", left + "px"); rs.setProperty("--sb", (H - dockTop + 10) + "px");
-  rs.setProperty("--sh", Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58)) + "px");
+  const sh = Math.round(tall ? dockTop - 10 - safeT : Math.min(dockTop - 10 - safeT, H * 0.58));
+  rs.setProperty("--sh", sh + "px");
   rs.setProperty("--ox", Math.round(bx - left) + "px");
-  rs.height = tall ? Math.round(dockTop - 10 - safeT) + "px" : "";   // tall panels keep one steady size, whatever is showing
+  rs.height = sh + "px";   // every panel keeps one steady size, so switching tabs never jumps
 }
 // keep the whole lamp (or the whole tank in full screen) in view above the open menu
 function frameView() {
@@ -2672,18 +2683,12 @@ document.querySelectorAll("#sheet .card").forEach(c => [...c.children].forEach((
   const tabs = $("#calmTabs");
   let calmSec = store.get("calmSec", "sess");
   const showSec = (c, animate) => {
-    const from = animate && card.classList.contains("show") ? card.getBoundingClientRect().height : 0;
     calmSec = c; store.set("calmSec", c);
     tabs.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
     card.querySelectorAll(".cpane").forEach(p => p.classList.toggle("on", p.dataset.c === c));
-    if (!from) return;
-    card.style.height = "auto"; const to = card.getBoundingClientRect().height;
-    card.style.overflow = "hidden"; card.style.height = from + "px";
-    card.offsetHeight;   // commit the start height
-    card.style.height = to + "px";
-    clearTimeout(card._ht);
-    card._ht = setTimeout(() => { card.style.height = ""; card.style.overflow = ""; }, 420);
+    if (animate) sheet.scrollTo({ top: 0, behavior: "smooth" });
   };
+
   tabs.querySelectorAll("button").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); if (b.dataset.c !== calmSec) { haptic("light"); showSec(b.dataset.c, true); } }));
   showSec(calmSec, false);
   const fxT = $("#fxToggle"), fxB = $("#fxBox");
@@ -2988,9 +2993,11 @@ canvas.addEventListener("pointerdown", e => {
   if (!started) return;
   if (sheetOpen) { closeSheet(); return; }
   try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-  popNear(e.clientX, e.clientY, 22);
+  // a swipe up from the very bottom is iOS closing the app: let it stir silently so nothing chimes as it leaves
+  const edge = e.clientY > H - 48;
+  if (edge) audio.hush(); else popNear(e.clientX, e.clientY, 22);
   const now = performance.now();
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0 });
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: now, tp: now, moved: false, multi: pointers.size > 0, dist: 0, lastNote: 0, edge });
   // instant feedback on press; the split itself happens on release if the finger didn't move (so drags never split)
   if (pointers.size === 1) {
     const id = e.pointerId, p = pointers.get(id);
@@ -3009,6 +3016,7 @@ canvas.addEventListener("pointermove", e => {
   p.dist += Math.hypot(dx, dy);
   if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) > 8) p.moved = true;
   p.x = e.clientX; p.y = e.clientY; p.tp = now;
+  if (p.edge) return;   // home-bar swipe: leave the lava alone
   popNear(p.x, p.y, 12);
   if (pointers.size === 1) {
     stir(p.x, p.y, dx / dtp, dy / dtp, dtp);
@@ -3022,7 +3030,7 @@ canvas.addEventListener("pointermove", e => {
 function endPointer(e) {
   const p = pointers.get(e.pointerId); if (!p) return;
   clearTimeout(p.timer);
-  if (e.type === "pointerup" && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 450) { if (!pressAction(p.x, p.y)) tap(p.x, p.y); }
+  if (e.type === "pointerup" && !p.edge && !p.acted && !p.moved && !p.multi && performance.now() - p.t0 < 450) { if (!pressAction(p.x, p.y)) tap(p.x, p.y); }
   pointers.delete(e.pointerId);
   if (pointers.size < 2) swipe = null;
 }
@@ -3036,7 +3044,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v57 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v58 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
