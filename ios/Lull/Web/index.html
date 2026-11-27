@@ -20,6 +20,10 @@
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;color:#fff}
   #app{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000}
+  /* lamp view: a soft wash of the lamp's light behind everything, so the edges never meet hard black */
+  #roomGlow{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .8s ease,background-position .6s cubic-bezier(.16,1,.3,1);
+    background:radial-gradient(85% 70% at var(--gx,50%) var(--gy,55%),color-mix(in srgb,var(--hot) 26%,#000) 0%,color-mix(in srgb,var(--hot) 11%,#000) 50%,color-mix(in srgb,var(--hot) 4%,#000) 100%)}
+  body.lampview #roomGlow{opacity:1}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;transform-origin:0 0;
     transition:opacity .35s ease,transform .6s cubic-bezier(.16,1,.3,1),border-radius .6s ease}
   #lamp{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform-origin:0 0;transition:opacity .35s ease,transform .6s cubic-bezier(.16,1,.3,1)}
@@ -314,6 +318,7 @@
 </head>
 <body>
 <div id="app">
+<div id="roomGlow" aria-hidden="true"></div>
 <canvas id="c"></canvas>
 <svg id="lamp" xmlns="http://www.w3.org/2000/svg"></svg>
 <div id="cue"></div>
@@ -693,11 +698,11 @@ void main(){
     col+=vec3(0.08)*smoothstep(0.88,1.,dxn);
     vec3 lampc=mix(uCool,uHot,0.6);
     float dxo=max(abs(p.x-uGlass.x)-uGlass.w*prof(y),0.);
-    float dyo=max(max(uGlass.y-p.y,p.y-uGlass.z),0.)*0.55;
+    float dyo=max(max(uGlass.y-p.y,p.y-uGlass.z),0.)*0.38;
     float dist=length(vec2(dxo,dyo));
     vec3 room=uLiqTop*0.3+vec3(0.008);
     room+=lampc*exp(-dist/(uGlass.w*1.1))*(0.15+0.06*uBreath)*lf;
-    room+=lampc*0.05*lf*exp(-dist/(uGlass.w*4.5));
+    room+=lampc*0.075*lf*exp(-dist/(uGlass.w*6.5));
     // the wall behind: the lamp throws big, soft, drifting wax shapes onto it
     float wsh=1.-exp(-wf*1.3), wht=clamp(wh/max(wf,1e-4),0.,1.);
     float pool=exp(-dist/(uGlass.w*2.6))*smoothstep(0.,uGlass.w*0.6,dist+uGlass.w*0.2)*lf*smoothstep(uGlass.z+uGlass.w*0.2,uGlass.z-uGlass.w*0.6,pw.y);
@@ -1667,7 +1672,7 @@ function render() {
   gl.uniform3fv(U.uHot, th0); gl.uniform3fv(U.uCool, tc0);
   neonGlow(th0, tc0);
   gl.uniform1f(U.uMergeK, clamp((absorb - 0.02) / 0.3, 0, 1)); gl.uniform1f(U.uWarm, ex.warm); gl.uniform1f(U.uGlow, ex.glow); gl.uniform1f(U.uVig, ex.vig);
-  if (sheetOpen && (++cssTick % 6 === 0)) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
+  if (++cssTick % 12 === 0) { const rs = document.documentElement.style; rs.setProperty("--hot", rgb2hex(cur.hot)); rs.setProperty("--cool", rgb2hex(cur.cool)); }
   gl.uniform3fv(U.uLiqTop, cur.liqTop); gl.uniform3fv(U.uLiqBot, cur.liqBot);
   gl.uniform1f(U.uTime, t); gl.uniform1f(U.uBreath, Math.min(1.4, breathLvl + notePulse * 0.6));
   gl.uniform1f(U.uLamp, lampGeo ? 1 : 0);
@@ -1729,7 +1734,7 @@ function frame(now) {
 
 /* ---------- audio ---------- */
 const audio = (() => {
-  let AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
+  let unplugged = false, AC = null, master, dry, fx, ambF, amb, ambBus, popBus, toneBus, lavaBus, fb, hideT = 0, lastBlub = 0;
   let scapeG = {}, musicBus, hzBus, breathBus, brG, brF, hzOsc = [], nextNote = 2, lastLvl = 0, wnb = null, lastPh = -1;
   // D major pentatonic, low and gentle
   const PENTA = [73.42, 82.41, 92.5, 110, 123.47, 146.83, 164.81, 185, 220, 246.94, 293.66, 329.63, 369.99, 440];
@@ -1859,17 +1864,20 @@ const audio = (() => {
     // Cutting it off mid-sound is what made iOS play a glitchy tone as the app closed.
     suspend() {
       if (!AC) return;
+      // iOS can freeze the page mid-fade, which left a half-played ramp that came out as a beep.
+      // So: silence and unplug the output immediately, empty the echo, and pause right away.
       try {
         const n = AC.currentTime;
-        master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(master.gain.value, n); master.gain.linearRampToValueAtTime(0, n + 0.06);
+        master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(0, n);
         fb.gain.cancelScheduledValues(n); fb.gain.setValueAtTime(0, n);
+        if (!unplugged) { master.disconnect(); unplugged = true; }
       } catch (e) {}
-      clearTimeout(hideT); hideT = setTimeout(() => { if (document.hidden) AC.suspend().catch(() => {}); }, 140);
+      clearTimeout(hideT); AC.suspend().catch(() => {});
     },
     wake() {
       if (!AC) return; clearTimeout(hideT);
       const n = AC.currentTime;
-      try { fb.gain.setValueAtTime(0.42, n); master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(0, n); } catch (e) {}
+      try { fb.gain.setValueAtTime(0.42, n); master.gain.cancelScheduledValues(n); master.gain.setValueAtTime(0, n); if (unplugged) { master.connect(AC.destination); unplugged = false; } } catch (e) {}
       resume(); level();
     },
     note(yFrac) {
@@ -2536,11 +2544,14 @@ function frameView() {
     tf = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(4)})`;
   }
   canvas.style.transform = tf; svg.style.transform = tf; canvas.style.borderRadius = "";
+  { const rg = $("#roomGlow"); if (tf && lampGeo) { const m = tf.match(/translate\(([-\d.]+)px,([-\d.]+)px\) scale\(([\d.]+)\)/);
+      if (m) { const sc = +m[3]; rg.style.setProperty("--gx", ((+m[1] + lampGeo.cx * sc) / W * 100).toFixed(1) + "%"); rg.style.setProperty("--gy", ((+m[2] + (lampGeo.top + lampGeo.bottom) / 2 * sc) / H * 100).toFixed(1) + "%"); } }
+    else { rg.style.removeProperty("--gx"); rg.style.removeProperty("--gy"); } }
   toast.style.right = sheetOpen && !sheet.classList.contains("picking") ? (pw + 20) + "px" : "";
   // the shifted room fades softly into the dark instead of ending in a hard edge
-  const mk = tf ? "linear-gradient(to bottom,transparent,#000 7%,#000 93%,transparent),linear-gradient(to right,transparent,#000 24%,#000 76%,transparent)" : "";
+  const mk = tf ? "radial-gradient(ellipse closest-side,#000 74%,transparent 100%)" : "";
   canvas.style.webkitMaskImage = mk; canvas.style.maskImage = mk;
-  canvas.style.webkitMaskComposite = tf ? "source-in" : ""; canvas.style.maskComposite = tf ? "intersect" : "";
+  canvas.style.webkitMaskComposite = ""; canvas.style.maskComposite = "";
 }
 function closeSheet(fromY) {
   sheetOpen = false;
@@ -2972,7 +2983,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v55 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v56 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
