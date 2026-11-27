@@ -220,6 +220,24 @@
   #sheet.peek .card > .pager,#sheet.peek .card > .pager .page{opacity:1 !important}
   #sheet.peek .row.lbar.active,#sheet.peek .card > .row.active,#sheet.peek .page > .row.active{opacity:1 !important}
   #sheet.peek .row.lbar.active{background:rgba(20,16,20,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:23px;padding:0 13px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+  /* Calm: four small sections, one at a time */
+  .calmtabs{grid-template-columns:repeat(4,1fr);margin-bottom:4px}
+  .cpane{display:none}
+  .cpane.on{display:block;animation:paneIn .38s cubic-bezier(.16,1,.3,1)}
+  @keyframes paneIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .card[data-card="calm"]{transition:height .38s cubic-bezier(.16,1,.3,1)}
+  .fxtoggle{display:flex;align-items:center;gap:8px;width:100%;margin-top:12px;padding:11px 12px;border:none;border-radius:14px;background:rgba(255,255,255,.06);color:#fff;font-size:14px;text-align:left}
+  .fxtoggle small{flex:1;font-size:11px;opacity:.55}
+  .fxtoggle i{font-style:normal;opacity:.6;transition:transform .35s cubic-bezier(.16,1,.3,1)}
+  .fxtoggle[aria-expanded="true"] i{transform:rotate(90deg)}
+  .fx{display:grid;grid-template-rows:0fr;transition:grid-template-rows .38s cubic-bezier(.16,1,.3,1),opacity .3s;opacity:0}
+  .fx.open{grid-template-rows:1fr;opacity:1}
+  .fxin{min-height:0;overflow:hidden}
+  .fx.open .fxin{padding-top:6px}
+  #sheet.peek .card > .cpane,#sheet.peek .cpane > .fx,#sheet.peek .fx > .fxin,#sheet.peek .cpane > .nativeonly{opacity:1 !important}
+  #sheet.peek .cpane > *,#sheet.peek .fxin > *,#sheet.peek .nativeonly > *{opacity:0 !important;transition:opacity .25s ease}
+  #sheet.peek .cpane > .fx,#sheet.peek .cpane > .nativeonly{opacity:1 !important}
+  #sheet.peek .cpane .row.active{opacity:1 !important}
   .row.lbar,.row.lbar *{outline:none;-webkit-tap-highlight-color:transparent}
   /* colour strip: floats up the right side; touch anywhere on it */
   #vpick{position:absolute;inset:0;z-index:30;pointer-events:none}
@@ -406,44 +424,55 @@
   </section>
 
   <section class="card" data-card="calm">
-    <div class="chead"><span>Sessions</span><span>the lamp guides you · tap to begin</span></div>
-    <div class="sessions" id="sessList"></div>
-    <div class="chead" style="margin-top:14px"><span>Soundscape</span></div>
-    <div class="seg" id="scapeSeg" style="grid-template-columns:repeat(5,1fr)"></div>
-    <div class="row"><span>Soundscape</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
-    <div class="chead" style="margin-top:14px"><span>Music</span><span>slow notes that make the lava glow</span></div>
-    <div class="seg" id="musicSeg" style="grid-template-columns:repeat(5,1fr)"></div>
-    <div class="row"><span>Music</span><input type="range" id="musicVol" min="0" max="1" step="0.01"></div>
-    <div class="chead" style="margin-top:14px"><span>Tones</span><span>a soft, steady hum</span></div>
-    <div class="seg" id="hzSeg" style="grid-template-columns:repeat(5,1fr)"></div>
-    <div class="row"><span>Tone</span><input type="range" id="hzVol" min="0" max="1" step="0.01"></div>
-    <div class="chead" style="margin-top:14px"><span>Gentle prompts</span><span>a quiet thought now and then</span></div>
-    <div class="row"><span>Prompts</span><button class="switch" id="swPrompts" aria-label="Gentle prompts"></button></div>
-    <div class="seg" id="promptSeg" style="grid-template-columns:repeat(3,1fr)">
-      <button data-s="360">Rarely</button><button data-s="180">Sometimes</button><button data-s="75">Often</button>
+    <div class="seg calmtabs" id="calmTabs"><button data-c="sess">Sessions</button><button data-c="breathe">Breathe</button><button data-c="sound">Sound</button><button data-c="sleep">Sleep</button></div>
+    <div class="cpane" data-c="sess">
+      <div class="chead"><span>Sessions</span><span>the lamp guides you · tap to begin</span></div>
+      <div class="sessions" id="sessList"></div>
     </div>
-    <div class="nativeonly">
-      <div class="chead" style="margin-top:14px"><span>Nightly reminder</span><span>a gentle nudge at bedtime</span></div>
-      <div class="row"><span>Remind me</span><button class="switch" id="swRemind" aria-label="Nightly reminder"></button></div>
-      <div class="seg" id="remindSeg" style="grid-template-columns:repeat(4,1fr)"><button data-t="21:30">9:30</button><button data-t="22:00">10:00</button><button data-t="22:30">10:30</button><button data-t="23:00">11:00</button></div>
+    <div class="cpane" data-c="breathe">
+      <div class="chead"><span>Breathing</span><span>the lava rises and falls with you</span></div>
+      <div class="seg" id="breathSeg"></div>
+      <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
+      <div class="row"><span>Breath sound</span><input type="range" id="breathVol" min="0" max="1" step="0.01"></div>
+      <div class="chead" style="margin-top:14px"><span>Gentle prompts</span><span>a quiet thought now and then</span></div>
+      <div class="row"><span>Prompts</span><button class="switch" id="swPrompts" aria-label="Gentle prompts"></button></div>
+      <div class="seg" id="promptSeg" style="grid-template-columns:repeat(3,1fr)">
+        <button data-s="360">Rarely</button><button data-s="180">Sometimes</button><button data-s="75">Often</button>
+      </div>
     </div>
-    <div class="chead" style="margin-top:14px"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
-    <div class="seg" id="sleepSeg" style="grid-template-columns:repeat(4,1fr)">
-      <button data-m="0">Off</button><button data-m="15">15 m</button><button data-m="30">30 m</button><button data-m="60">1 h</button>
+    <div class="cpane" data-c="sound">
+      <div class="row"><span>Sound</span><button class="switch" id="swSound" aria-label="Sound"></button></div>
+      <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
+      <div class="chead" style="margin-top:12px"><span>Soundscape</span><span>keeps playing with the screen locked</span></div>
+      <div class="seg" id="scapeSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+      <div class="row"><span>Soundscape</span><input type="range" id="ambVol" min="0" max="1" step="0.01"></div>
+      <div class="chead" style="margin-top:12px"><span>Music</span><span>slow notes that make the lava glow</span></div>
+      <div class="seg" id="musicSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+      <div class="row"><span>Music</span><input type="range" id="musicVol" min="0" max="1" step="0.01"></div>
+      <div class="chead" style="margin-top:12px"><span>Tones</span><span>a soft, steady hum</span></div>
+      <div class="seg" id="hzSeg" style="grid-template-columns:repeat(5,1fr)"></div>
+      <div class="row"><span>Tone</span><input type="range" id="hzVol" min="0" max="1" step="0.01"></div>
+      <button class="fxtoggle" id="fxToggle" aria-expanded="false"><span>Effects</span><small>pops, stirs and blubs</small><i aria-hidden="true">›</i></button>
+      <div class="fx" id="fxBox"><div class="fxin">
+        <div class="row"><span>Pops</span><input type="range" id="popVol" min="0" max="1" step="0.01"></div>
+        <div class="row"><span>Stir tones</span><input type="range" id="toneVol" min="0" max="1" step="0.01"></div>
+        <div class="row"><span>Lava blubs</span><input type="range" id="lavaVol" min="0" max="1" step="0.01"></div>
+        <div class="seg" id="toneSeg" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
+          <button data-t="chime">Chime</button><button data-t="glass">Glass</button><button data-t="soft">Soft</button>
+        </div>
+      </div></div>
     </div>
-    <div class="row"><span>Dim</span><input type="range" id="dim" min="0" max="1" step="0.01"></div>
-    <div class="chead" style="margin-top:14px"><span>Breathing</span></div>
-    <div class="seg" id="breathSeg"></div>
-    <div class="row" style="margin-top:6px"><span>Show cues</span><button class="switch" id="swCue" aria-label="Show breathing cues"></button></div>
-    <div class="row"><span>Breath sound</span><input type="range" id="breathVol" min="0" max="1" step="0.01"></div>
-    <div class="chead" style="margin-top:14px"><span>Sound</span></div>
-    <div class="row"><span>Ambient</span><button class="switch" id="swSound" aria-label="Ambient sound"></button></div>
-    <div class="row"><span>Volume</span><input type="range" id="vol" min="0" max="1" step="0.01"></div>
-    <div class="row"><span>Pops</span><input type="range" id="popVol" min="0" max="1" step="0.01"></div>
-    <div class="row"><span>Stir tones</span><input type="range" id="toneVol" min="0" max="1" step="0.01"></div>
-    <div class="row"><span>Lava blubs</span><input type="range" id="lavaVol" min="0" max="1" step="0.01"></div>
-    <div class="seg" id="toneSeg" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
-      <button data-t="chime">Chime</button><button data-t="glass">Glass</button><button data-t="soft">Soft</button>
+    <div class="cpane" data-c="sleep">
+      <div class="chead"><span>Wind down</span><span id="sleepHint">fade the lamp and sound out</span></div>
+      <div class="seg" id="sleepSeg" style="grid-template-columns:repeat(4,1fr)">
+        <button data-m="0">Off</button><button data-m="15">15 m</button><button data-m="30">30 m</button><button data-m="60">1 h</button>
+      </div>
+      <div class="row"><span>Dim</span><input type="range" id="dim" min="0" max="1" step="0.01"></div>
+      <div class="nativeonly">
+        <div class="chead" style="margin-top:14px"><span>Nightly reminder</span><span>a gentle nudge at bedtime</span></div>
+        <div class="row"><span>Remind me</span><button class="switch" id="swRemind" aria-label="Nightly reminder"></button></div>
+        <div class="seg" id="remindSeg" style="grid-template-columns:repeat(4,1fr)"><button data-t="21:30">9:30</button><button data-t="22:00">10:00</button><button data-t="22:30">10:30</button><button data-t="23:00">11:00</button></div>
+      </div>
     </div>
     <div class="hint" id="ver" style="margin:10px 0 0;font-size:10px;opacity:.3"></div>
   </section>
@@ -2615,7 +2644,7 @@ $("#viewBtn").addEventListener("click", e => { e.stopPropagation(); setView(view
 $("#amt").oninput = e => { amount = +e.target.value; store.set("amount", amount); applyAmountNow(); };
 [...$("#styleSeg").children].forEach(b => b.onclick = () => { style = b.dataset.s; store.set("style", style); syncUI(); });
 [...$("#modeSeg").children].forEach(b => b.onclick = () => { lightMode = b.dataset.m; store.set("lightMode", lightMode); syncUI(); });
-document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => { if (el.closest('[data-card="presets"]')) return; el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
+document.querySelectorAll("#sheet input, #sheet .seg button, #chips").forEach(el => { if (el.closest('[data-card="presets"]') || el.closest("#calmTabs")) return; el.addEventListener(el.tagName === "INPUT" ? "input" : "click", () => {
   if (activePreset) { activePreset = null; store.set("activePreset", null); markActive(); }
 }); });
 $("#lavaVol").addEventListener("input", e => { lavaVol = +e.target.value; store.set("lavaVol", lavaVol); audio.level(); });
@@ -2637,6 +2666,30 @@ for (const ev of ["pointerup", "touchend", "touchcancel", "pointercancel"]) docu
 // finger, never jumping), or tap a spot to glide there.
 const BARS = [], BAR_FX = [];
 document.querySelectorAll("#sheet .card").forEach(c => [...c.children].forEach((el, i) => el.style.setProperty("--i", i)));
+/* Calm sections: one small pane at a time; the panel glides to its new height */
+{
+  const card = sheet.querySelector('.card[data-card="calm"]');
+  const tabs = $("#calmTabs");
+  let calmSec = store.get("calmSec", "sess");
+  const showSec = (c, animate) => {
+    const from = animate && card.classList.contains("show") ? card.getBoundingClientRect().height : 0;
+    calmSec = c; store.set("calmSec", c);
+    tabs.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
+    card.querySelectorAll(".cpane").forEach(p => p.classList.toggle("on", p.dataset.c === c));
+    if (!from) return;
+    card.style.height = "auto"; const to = card.getBoundingClientRect().height;
+    card.style.overflow = "hidden"; card.style.height = from + "px";
+    card.offsetHeight;   // commit the start height
+    card.style.height = to + "px";
+    clearTimeout(card._ht);
+    card._ht = setTimeout(() => { card.style.height = ""; card.style.overflow = ""; }, 420);
+  };
+  tabs.querySelectorAll("button").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); if (b.dataset.c !== calmSec) { haptic("light"); showSec(b.dataset.c, true); } }));
+  showSec(calmSec, false);
+  const fxT = $("#fxToggle"), fxB = $("#fxBox");
+  fxT.addEventListener("click", e => { e.stopPropagation(); const o = !fxB.classList.contains("open"); fxB.classList.toggle("open", o); fxT.setAttribute("aria-expanded", o); haptic("light"); });
+  window.__calmSec = c => showSec(c, true);
+}
 document.querySelectorAll('#sheet input[type=range]').forEach(inp => {
   const row = inp.closest(".row"); row.classList.add("lbar");
   const name = row.querySelector("span"); name.className = "lname";
@@ -2983,7 +3036,7 @@ document.addEventListener("dblclick", e => e.preventDefault());
 function heal() {
   appEl.style.display = "none"; void appEl.offsetHeight; appEl.style.display = "";
   resize();
-  $("#ver").textContent = `Lull v56 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
+  $("#ver").textContent = `Lull v57 · ${W}×${Math.round(H)} · view ${innerHeight} · screen ${screen.height}`;
 }
 let wakeLock = null;
 async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
